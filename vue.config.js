@@ -13,7 +13,7 @@ module.exports = defineConfig({
   pages: {
     index: {
       entry: 'src/main.js',
-      title: '快牛项目管理平台',
+      title: '旭辉项目管理平台',
     },
   },
 
