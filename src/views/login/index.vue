@@ -2,8 +2,8 @@
   <div class="login-container">
     <div class="brand-logo">
       <div class="brand-text">
-        <span class="brand-cn">快牛智营</span>
-        <span class="brand-en">QuickCEP</span>
+        <span class="brand-cn">旭辉平台</span>
+        <span class="brand-en">Cherish</span>
       </div>
     </div>
     <el-form
@@ -15,7 +15,7 @@
       label-position="left"
     >
       <div class="title-container">
-        <h3 class="title">项目管理系统</h3>
+        <h3 class="title">旭辉项目管理平台</h3>
       </div>
 
       <el-form-item prop="username">
