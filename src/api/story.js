@@ -52,3 +52,27 @@ export function deleteStoryComment(commentId) {
     method: 'delete',
   });
 }
+
+export function parseFeishuDoc(data) {
+  return request({
+    url: '/story/parse-feishu-doc',
+    method: 'post',
+    data,
+  });
+}
+
+export function getFeishuAuthUrl(redirectUri) {
+  return request({
+    url: '/story/feishu-auth-url',
+    method: 'get',
+    params: { redirect_uri: redirectUri },
+  });
+}
+
+export function exchangeFeishuToken(data) {
+  return request({
+    url: '/story/feishu-exchange-token',
+    method: 'post',
+    data,
+  });
+}

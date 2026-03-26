@@ -36,14 +36,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="指派给">
-          <el-select v-model="queryParams.assignee" placeholder="全部" clearable filterable style="width: 140px">
-            <el-option v-for="u in userList" :key="u.id" :label="u.label" :value="u.label">
-              <div class="user-option">
-                <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                <span>{{ u.label }}</span>
-              </div>
-            </el-option>
-          </el-select>
+          <UserCascader v-model="queryParams.assignee" :user-list="userList" value-key="label" placeholder="全部" width="180px" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">
@@ -186,6 +179,7 @@ import { Tickets } from '@element-plus/icons-vue';
 import { getTaskList, updateTask, deleteTask } from '@/api/task';
 import { getUserList } from '@/api/user';
 import { getVersionList } from '@/api/version';
+import UserCascader from '@/components/UserCascader.vue';
 import TaskDialog from './components/TaskDialog.vue';
 import TaskDetailDrawer from './components/TaskDetailDrawer.vue';
 
@@ -223,6 +217,7 @@ const fetchOptions = async () => {
       id: u.id,
       label: u.first_name || u.username,
       avatar: u.avatar || '',
+      dept: u.dept || '',
     }));
   } catch {
     // 加载选项失败

@@ -1,30 +1,23 @@
 <template>
-  <div class="login-container">
-    <div class="brand-logo">
-      <div class="brand-text">
-        <span class="brand-cn">旭辉平台</span>
-        <span class="brand-en">Cherish</span>
-      </div>
+  <AuthLayout>
+    <div class="login-header">
+      <h3 class="form-title">欢迎回来</h3>
+      <p class="form-subtitle">登录您的账号以继续</p>
     </div>
+
     <el-form
       ref="loginFormRef"
       :model="loginForm"
       :rules="loginRules"
-      class="login-form"
-      autocomplete="on"
       label-position="left"
+      @keyup.enter="handleLogin"
     >
-      <div class="title-container">
-        <h3 class="title">旭辉项目管理平台</h3>
-      </div>
-
       <el-form-item prop="username">
         <el-input
           ref="usernameRef"
           v-model="loginForm.username"
           placeholder="用户名"
-          name="username"
-          type="text"
+          size="large"
           autocomplete="on"
         >
           <template #prefix>
@@ -39,52 +32,69 @@
           v-model="loginForm.password"
           :type="passwordType"
           placeholder="密码"
-          name="password"
+          size="large"
           autocomplete="on"
-          @keyup.enter="handleLogin"
         >
           <template #prefix>
             <el-icon><Lock /></el-icon>
           </template>
           <template #suffix>
-            <el-icon class="show-pwd" @click="showPwd">
+            <el-icon class="toggle-pwd" @click="togglePwd">
               <component :is="passwordType === 'password' ? 'View' : 'Hide'" />
             </el-icon>
           </template>
         </el-input>
       </el-form-item>
 
-      <div class="tips">
+      <div class="form-options">
         <el-checkbox v-model="rememberMe">记住密码</el-checkbox>
-        <router-link to="/forgot-password" class="forgot-link">
-          忘记密码？
-        </router-link>
+        <router-link to="/forgot-password" class="link">忘记密码？</router-link>
       </div>
 
       <el-button
         :loading="loading"
         type="primary"
-        style="width: 100%; margin-bottom: 20px"
+        size="large"
+        class="submit-btn"
         @click.prevent="handleLogin"
       >
-        登录
+        登 录
       </el-button>
-
-      <div class="register-link">
-        还没有账号？
-        <router-link to="/register">立即注册</router-link>
-      </div>
     </el-form>
-  </div>
+
+    <div class="form-footer">
+      还没有账号？
+      <router-link to="/register" class="link">立即注册</router-link>
+    </div>
+
+    <!-- 飞书扫码登录 -->
+    <div class="feishu-divider">
+      <span>或</span>
+    </div>
+    <el-button class="feishu-btn" size="large" :loading="feishuLoading" @click="handleFeishuLogin">
+      <img src="@/assets/feishu-logo.svg" class="feishu-icon" alt="飞书">
+      飞书扫码登录
+    </el-button>
+
+    <!-- 邮箱补填弹窗 -->
+    <FeishuEmailDialog
+      :visible="emailDialogVisible"
+      :feishu-info="feishuInfo"
+      @success="onFeishuRegisterSuccess"
+    />
+  </AuthLayout>
 </template>
 
 <script setup>
 import {
-  ref, reactive, nextTick, onMounted
+  ref, reactive, nextTick, onMounted, onUnmounted,
 } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
+import AuthLayout from '@/views/components/AuthLayout.vue';
+import { feishuLogin } from '@/api/user';
+import FeishuEmailDialog from './FeishuEmailDialog.vue';
 
 const router = useRouter();
 const store = useStore();
@@ -93,11 +103,7 @@ const loginFormRef = ref(null);
 const usernameRef = ref(null);
 const passwordRef = ref(null);
 
-const loginForm = reactive({
-  username: 'admin',
-  password: '123456',
-});
-
+const loginForm = reactive({ username: '', password: '' });
 const loginRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
@@ -107,15 +113,9 @@ const passwordType = ref('password');
 const loading = ref(false);
 const rememberMe = ref(false);
 
-const showPwd = () => {
-  if (passwordType.value === 'password') {
-    passwordType.value = '';
-  } else {
-    passwordType.value = 'password';
-  }
-  nextTick(() => {
-    passwordRef.value.focus();
-  });
+const togglePwd = () => {
+  passwordType.value = passwordType.value === 'password' ? '' : 'password';
+  nextTick(() => { passwordRef.value.focus(); });
 };
 
 const handleLogin = async () => {
@@ -123,174 +123,264 @@ const handleLogin = async () => {
   loading.value = true;
   try {
     await store.dispatch('user/login', loginForm);
+    if (rememberMe.value) {
+      localStorage.setItem('kn_remember', JSON.stringify({
+        username: loginForm.username,
+        password: loginForm.password,
+      }));
+    } else {
+      localStorage.removeItem('kn_remember');
+    }
     ElMessage.success('登录成功');
     router.push({ path: '/dashboard' });
-  } catch (error) {
-    ElMessage.error('登录失败');
+  } catch {
+    ElMessage.error('用户名或密码错误');
   } finally {
     loading.value = false;
   }
 };
 
-onMounted(() => {
-  if (loginForm.username === '') {
-    usernameRef.value.focus();
-  } else if (loginForm.password === '') {
-    passwordRef.value.focus();
+// ── 飞书扫码登录 ──
+const feishuLoading = ref(false);
+const emailDialogVisible = ref(false);
+const feishuInfo = ref({});
+let feishuWindow = null;
+
+function handleFeishuMessage(event) {
+  if (event.data?.type !== 'feishu_login_callback') return;
+  const { code, error } = event.data;
+  if (error) {
+    ElMessage.error('飞书授权失败：' + error);
+    feishuLoading.value = false;
+    return;
   }
+  if (!code) return;
+  const redirectUri = `${window.location.origin}/feishu-login-callback.html`;
+  feishuLogin({ code, redirect_uri: redirectUri }).then((res) => {
+    if (res.code !== 200) {
+      ElMessage.error(res.message || '飞书登录失败');
+      return;
+    }
+    if (res.data.need_email) {
+      feishuInfo.value = res.data.feishu_info;
+      emailDialogVisible.value = true;
+    } else {
+      onFeishuLoginSuccess(res.data.token);
+    }
+  }).catch(() => {
+    ElMessage.error('飞书登录失败，请重试');
+  }).finally(() => {
+    feishuLoading.value = false;
+    if (feishuWindow) { feishuWindow.close(); feishuWindow = null; }
+  });
+}
+
+async function handleFeishuLogin() {
+  feishuLoading.value = true;
+  const redirectUri = `${window.location.origin}/feishu-login-callback.html`;
+  const params = new URLSearchParams({
+    app_id: 'cli_a931d0c8a7f89cd5',
+    redirect_uri: redirectUri,
+    scope: 'contact:user.employee:readonly',
+    state: 'feishu_login',
+  });
+  const authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?${params}`;
+  feishuWindow = window.open(authUrl, 'feishu_login', 'width=600,height=700,left=200,top=100');
+  if (!feishuWindow) {
+    ElMessage.error('弹窗被拦截，请允许弹窗后重试');
+    feishuLoading.value = false;
+    return;
+  }
+  // 轮询检测用户手动关闭弹窗
+  const timer = setInterval(() => {
+    if (feishuWindow && feishuWindow.closed) {
+      clearInterval(timer);
+      feishuLoading.value = false;
+      feishuWindow = null;
+    }
+  }, 500);
+}
+
+function onFeishuLoginSuccess(token) {
+  store.commit('user/SET_TOKEN', token);
+  localStorage.setItem('token', token);
+  ElMessage.success('登录成功');
+  router.push({ path: '/dashboard' });
+}
+
+function onFeishuRegisterSuccess(token) {
+  emailDialogVisible.value = false;
+  onFeishuLoginSuccess(token);
+}
+
+onMounted(() => {
+  window.addEventListener('message', handleFeishuMessage);
+  if (!loginForm.username) usernameRef.value.focus();
+  else if (!loginForm.password) passwordRef.value.focus();
+  const saved = localStorage.getItem('kn_remember');
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      loginForm.username = data.username || '';
+      loginForm.password = data.password || '';
+      rememberMe.value = true;
+    } catch { /* ignore */ }
+  }
+});
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleFeishuMessage);
 });
 </script>
 
 <style lang="scss" scoped>
-.login-container {
-  min-height: 100vh;
+.login-header {
+  margin-bottom: 36px;
+
+  .form-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #0c252e;
+    margin: 0 0 8px;
+    letter-spacing: 0.5px;
+  }
+
+  .form-subtitle {
+    font-size: 14px;
+    color: #7a9099;
+    margin: 0;
+  }
+}
+
+.form-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.submit-btn {
   width: 100%;
-  background-image: url('@/assets/think.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  overflow: hidden;
+  height: 48px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  background: linear-gradient(135deg, #41B093 0%, #184657 100%);
+  border: none;
+  transition: all 0.25s;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(65, 176, 147, 0.4);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.form-footer {
+  margin-top: 28px;
+  text-align: center;
+  font-size: 14px;
+  color: #7a9099;
+}
+
+.feishu-divider {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding-right: 8%;
-  position: relative;
+  margin: 20px 0 16px;
+  color: #c0cdd0;
+  font-size: 13px;
 
-  .brand-logo {
-    position: absolute;
-    top: 40px;
-    left: 50px;
-    z-index: 10;
-
-    .brand-text {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-
-      .brand-cn {
-        font-size: 32px;
-        font-weight: 700;
-        background: linear-gradient(135deg, #e8956f 0%, #d4825f 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        letter-spacing: 2px;
-        text-shadow: 0 2px 10px rgba(232, 149, 111, 0.3);
-      }
-
-      .brand-en {
-        font-size: 18px;
-        font-weight: 600;
-        color: #d4825f;
-        letter-spacing: 1px;
-        opacity: 0.9;
-        font-family: 'Arial', sans-serif;
-      }
-    }
+  &::before, &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e4ecee;
   }
 
-  .login-form {
-    position: relative;
-    width: 420px;
-    max-width: 90%;
-    padding: 40px 35px 30px;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.92);
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
-    z-index: 1;
+  span { padding: 0 12px; }
+}
 
-    .title-container {
-      position: relative;
-      text-align: center;
-      margin-bottom: 35px;
+.feishu-btn {
+  width: 100%;
+  height: 48px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  border: 1.5px solid #e4ecee;
+  color: #303133;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.25s;
 
-      .title {
-        font-size: 28px;
-        color: #d4825f;
-        margin: 0 auto 10px;
-        font-weight: bold;
-        text-shadow: 2px 2px 4px rgba(212, 130, 95, 0.15);
-      }
-    }
-
-    .el-form-item {
-      margin-bottom: 22px;
-    }
-
-    .tips {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 22px;
-
-      .forgot-link {
-        color: #d4825f;
-        text-decoration: none;
-        font-size: 14px;
-        transition: all 0.3s;
-
-        &:hover {
-          color: #e8956f;
-          text-decoration: underline;
-        }
-      }
-    }
-
-    .register-link {
-      text-align: center;
-      margin-bottom: 20px;
-      font-size: 14px;
-      color: #666;
-
-      a {
-        color: #d4825f;
-        text-decoration: none;
-        margin-left: 5px;
-        font-weight: 500;
-        transition: all 0.3s;
-
-        &:hover {
-          color: #e8956f;
-          text-decoration: underline;
-        }
-      }
-    }
-
-    .show-pwd {
-      cursor: pointer;
-      user-select: none;
-      transition: color 0.3s;
-
-      &:hover {
-        color: #d4825f;
-      }
-    }
-
-    :deep(.el-button--primary) {
-      background: linear-gradient(135deg, #e8956f 0%, #d4825f 100%);
-      border: none;
-      border-radius: 25px;
-      height: 45px;
-      font-size: 16px;
-      font-weight: 500;
-      transition: all 0.3s;
-
-      &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(232, 149, 111, 0.4);
-      }
-    }
-
-    :deep(.el-input__wrapper) {
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-      transition: all 0.3s;
-
-      &:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      }
-    }
+  &:hover {
+    border-color: #1456F0;
+    color: #1456F0;
+    background: #f0f4ff;
   }
+
+  .feishu-icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.link {
+  color: #41B093;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #184657;
+  }
+}
+
+.toggle-pwd {
+  cursor: pointer;
+  color: #aab8bc;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #41B093;
+  }
+}
+
+:deep(.el-input__wrapper) {
+  border-radius: 10px;
+  border: 1.5px solid #e4ecee;
+  box-shadow: none;
+  background: #f8fbfc;
+  transition: border-color 0.2s, background 0.2s;
+
+  &:hover {
+    border-color: #41B093;
+    background: #fff;
+  }
+
+  &.is-focus {
+    border-color: #41B093;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(65, 176, 147, 0.12);
+  }
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 20px;
+}
+
+:deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+  background-color: #41B093;
+  border-color: #41B093;
+}
+
+:deep(.el-checkbox__label) {
+  color: #4a6570;
 }
 </style>

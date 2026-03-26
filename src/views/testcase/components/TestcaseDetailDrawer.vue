@@ -68,23 +68,42 @@
     </template>
 
     <template #footer>
-      <el-button @click="$emit('update:visible', false)">关闭</el-button>
-      <el-button type="primary" @click="$emit('run', testcase)">
-        <el-icon><VideoPlay /></el-icon>执行用例
-      </el-button>
+      <div class="drawer-footer">
+        <div class="nav-group">
+          <el-button :disabled="!hasPrev" @click="$emit('prev')">
+            <el-icon><ArrowLeft /></el-icon>上一条
+          </el-button>
+          <span class="nav-counter">{{ currentIndex + 1 }} / {{ totalCount }}</span>
+          <el-button :disabled="!hasNext" @click="$emit('next')">
+            下一条<el-icon><ArrowRight /></el-icon>
+          </el-button>
+        </div>
+        <div class="action-group">
+          <el-button @click="$emit('update:visible', false)">关闭</el-button>
+          <el-button type="primary" @click="$emit('run', testcase)">
+            <el-icon><VideoPlay /></el-icon>执行用例
+          </el-button>
+        </div>
+      </div>
     </template>
   </el-drawer>
 </template>
 
 <script setup>
-import { VideoPlay } from '@element-plus/icons-vue';
+import { VideoPlay, ArrowLeft, ArrowRight } from '@element-plus/icons-vue';
+import { computed } from 'vue';
 
-defineProps({
+const props = defineProps({
   visible: Boolean,
   testcase: { type: Object, default: null },
+  currentIndex: { type: Number, default: 0 },
+  totalCount: { type: Number, default: 0 },
 });
 
-defineEmits(['update:visible', 'run']);
+const hasPrev = computed(() => props.currentIndex > 0);
+const hasNext = computed(() => props.currentIndex < props.totalCount - 1);
+
+defineEmits(['update:visible', 'run', 'prev', 'next']);
 </script>
 
 <style scoped lang="scss">
@@ -253,6 +272,33 @@ defineEmits(['update:visible', 'run']);
   color: #909399;
 
   .expect-label { color: #c0c4cc; }
+}
+
+// 优先级色块
+// 底部导航
+.drawer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.nav-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-counter {
+  font-size: 12px;
+  color: #909399;
+  min-width: 48px;
+  text-align: center;
+}
+
+.action-group {
+  display: flex;
+  gap: 8px;
 }
 
 // 优先级色块

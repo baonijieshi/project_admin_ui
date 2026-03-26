@@ -22,14 +22,7 @@
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="产品经理" prop="manager">
-              <el-select v-model="form.manager" placeholder="请选择" filterable style="width: 100%">
-                <el-option v-for="u in pmUserList" :key="u.id" :label="u.label" :value="u.id">
-                  <div class="user-option">
-                    <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                    <span>{{ u.label }}</span>
-                  </div>
-                </el-option>
-              </el-select>
+              <UserCascader v-model="form.manager" :user-list="pmUserList" placeholder="请选择" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -46,25 +39,13 @@
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="开发负责人" prop="devLeader">
-              <el-select v-model="form.devLeader" placeholder="请选择" filterable style="width: 100%">
-                <el-option v-for="u in devUserList" :key="u.id" :label="u.label" :value="u.id">
-                  <div class="user-option">
-                    <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                    <span>{{ u.label }}</span>
-                  </div>
-                </el-option>
-              </el-select>
+              <UserCascader v-model="form.devLeader" :user-list="devUserList" placeholder="请选择" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="测试负责人" prop="testLeader">
-              <el-select v-model="form.testLeader" placeholder="请选择" filterable style="width: 100%">
-                <el-option v-for="u in testUserList" :key="u.id" :label="u.label" :value="u.id">
-                  <div class="user-option">
-                    <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                    <span>{{ u.label }}</span>
-                  </div>
-                </el-option>
+              <el-select v-model="form.testLeader" multiple filterable collapse-tags collapse-tags-tooltip placeholder="请选择" style="width:100%">
+                <el-option v-for="u in testUserList" :key="u.id" :label="u.label" :value="u.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -100,6 +81,7 @@
 import { ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { createVersion, updateVersion } from '@/api/version';
+import UserCascader from '@/components/UserCascader.vue';
 
 const props = defineProps({
   visible: Boolean,
@@ -123,7 +105,7 @@ const defaultForm = () => ({
   projectIds: [],
   manager: null,
   devLeader: null,
-  testLeader: null,
+  testLeader: [],
   status: '未开始',
   startDate: '',
   endDate: '',
@@ -153,7 +135,7 @@ const handleSubmit = async () => {
       project_ids: form.value.projectIds || [],
       manager: form.value.manager || null,
       dev_leader: form.value.devLeader || null,
-      test_leader: form.value.testLeader || null,
+      test_leader_ids: form.value.testLeader || [],
       status: form.value.status,
       start_date: form.value.startDate || null,
       end_date: form.value.endDate || null,

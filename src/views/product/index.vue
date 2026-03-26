@@ -124,6 +124,7 @@ const fetchUsers = async () => {
       id: u.id,
       label: u.first_name || u.username,
       avatar: u.avatar || '',
+      dept: u.dept || '',
     }));
   } catch {
     // 获取用户列表失败

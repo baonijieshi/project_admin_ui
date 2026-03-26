@@ -47,14 +47,7 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="指派给" prop="assignee">
-            <el-select v-model="bugForm.assignee" placeholder="请选择" filterable style="width: 100%">
-              <el-option v-for="u in userList" :key="u.id" :label="u.label" :value="u.id">
-                <div class="user-option">
-                  <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                  <span>{{ u.label }}</span>
-                </div>
-              </el-option>
-            </el-select>
+            <UserCascader v-model="bugForm.assignee" :user-list="userList" placeholder="请选择" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -112,6 +105,7 @@ import '@wangeditor/editor/dist/css/style.css';
 import { createBug, updateBug } from '@/api/bug';
 import { getModuleFlatList } from '@/api/module';
 import request from '@/utils/request';
+import UserCascader from '@/components/UserCascader.vue';
 
 const props = defineProps({
   visible: Boolean,

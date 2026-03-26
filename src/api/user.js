@@ -41,3 +41,19 @@ export function updateAvatar(avatar) {
     data: { avatar },
   });
 }
+
+export function feishuLogin(data) {
+  return request({ url: '/user/feishu-login', method: 'post', data });
+}
+
+export function feishuCompleteRegister(data) {
+  return request({ url: '/user/feishu-complete-register', method: 'post', data });
+}
+
+export function changePassword(data) {
+  return request({
+    url: '/user/change-password',
+    method: 'post',
+    data,
+  });
+}

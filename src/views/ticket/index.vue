@@ -114,78 +114,16 @@
                 </el-select>
               </el-form-item>
               <el-form-item label="当前处理人">
-                <el-select
-                  v-model="queryParams.assignee"
-                  placeholder="全部"
-                  clearable
-                  filterable
-                  style="width:100%"
-                >
-                  <el-option v-for="u in userList" :key="u.id" :label="u.label" :value="u.id">
-                    <div class="user-option">
-                      <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                      <span>{{ u.label }}</span>
-                    </div>
-                  </el-option>
-                </el-select>
+                <UserCascader v-model="queryParams.assignee" :user-list="userList" placeholder="全部" />
               </el-form-item>
               <el-form-item label="测试处理人">
-                <el-select
-                  v-model="queryParams.test_assignee"
-                  placeholder="全部"
-                  clearable
-                  filterable
-                  style="width:100%"
-                >
-                  <el-option
-                    v-for="u in testUserList"
-                    :key="u.id"
-                    :label="u.label"
-                    :value="u.id"
-                  >
-                    <div class="user-option">
-                      <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                      <span>{{ u.label }}</span>
-                    </div>
-                  </el-option>
-                </el-select>
+                <UserCascader v-model="queryParams.test_assignee" :user-list="testUserList" placeholder="全部" />
               </el-form-item>
               <el-form-item label="研发处理人">
-                <el-select
-                  v-model="queryParams.dev_assignee"
-                  placeholder="全部"
-                  clearable
-                  filterable
-                  style="width:100%"
-                >
-                  <el-option
-                    v-for="u in devUserList"
-                    :key="u.id"
-                    :label="u.label"
-                    :value="u.id"
-                  >
-                    <div class="user-option">
-                      <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                      <span>{{ u.label }}</span>
-                    </div>
-                  </el-option>
-                </el-select>
+                <UserCascader v-model="queryParams.dev_assignee" :user-list="devUserList" placeholder="全部" />
               </el-form-item>
               <el-form-item label="提交人">
-                <el-select
-                  v-model="queryParams.reporter"
-                  placeholder="全部"
-                  clearable
-                  filterable
-                  style="width:100%"
-                >
-                  <el-option v-for="u in userList" :key="u.id" :label="u.label" :value="u.id">
-                    <div class="user-option">
-                      <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                      <span>{{ u.label }}</span>
-                    </div>
-                  </el-option>
-                </el-select>
+                <UserCascader v-model="queryParams.reporter" :user-list="userList" placeholder="全部" />
               </el-form-item>
               <div style="text-align:right; margin-top:4px">
                 <el-button size="small" @click="handleReset">重置</el-button>
@@ -332,6 +270,7 @@ import {
 import { getTicketList, deleteTicket } from '@/api/ticket';
 import { getUserList } from '@/api/user';
 import { getModuleFlatList } from '@/api/module';
+import UserCascader from '@/components/UserCascader.vue';
 import { STEPS, typeOptions } from './ticketConstants';
 import TicketDialog from './components/TicketDialog.vue';
 import TicketDetailDrawer from './components/TicketDetailDrawer.vue';
@@ -418,12 +357,12 @@ async function fetchUsers() {
   const all = (res.data || []).map((u) => ({
     id: u.id,
     label: u.first_name || u.username,
-    role: u.role,
     avatar: u.avatar || '',
+    dept: u.dept || '',
   }));
   userList.value = all;
-  testUserList.value = all.filter((u) => ['test', 'admin'].includes(u.role));
-  devUserList.value = all.filter((u) => ['dev', 'admin'].includes(u.role));
+  testUserList.value = all;
+  devUserList.value = all;
 }
 
 async function fetchModules() {

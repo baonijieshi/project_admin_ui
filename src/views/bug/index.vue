@@ -454,8 +454,9 @@ onMounted(async () => {
   ]);
   userList.value = (uRes.data || []).map((u) => ({
     id: u.id,
-    label: u.username || u.name,
+    label: u.first_name || u.username,
     avatar: u.avatar,
+    dept: u.dept || '',
   }));
   projectList.value = pRes.data?.list || pRes.data || [];
   versionOptions.value = vRes.data?.list || vRes.data || [];

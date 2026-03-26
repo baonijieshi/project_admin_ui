@@ -35,14 +35,7 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="指派给">
-            <el-select v-model="form.assignee" placeholder="请选择" clearable style="width: 100%">
-              <el-option v-for="u in userList" :key="u.id" :label="u.label" :value="u.id">
-                <div class="user-option">
-                  <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                  <span>{{ u.label }}</span>
-                </div>
-              </el-option>
-            </el-select>
+            <UserCascader v-model="form.assignee" :user-list="userList" placeholder="请选择" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -76,6 +69,7 @@ import { ElMessage } from 'element-plus';
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue';
 import { createStory, updateStory } from '@/api/story';
 import request from '@/utils/request';
+import UserCascader from '@/components/UserCascader.vue';
 
 const props = defineProps({
   visible: Boolean,

@@ -32,13 +32,8 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="指派给">
-              <el-select v-model="form.assignee" placeholder="请选择" clearable filterable style="width: 100%">
-                <el-option v-for="u in userList" :key="u.id" :label="u.label" :value="u.id">
-                  <div class="user-option">
-                    <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                    <span>{{ u.label }}</span>
-                  </div>
-                </el-option>
+              <el-select v-model="form.assignee" multiple filterable collapse-tags collapse-tags-tooltip placeholder="请选择" style="width:100%">
+                <el-option v-for="u in userList" :key="u.id" :label="u.label" :value="u.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -72,7 +67,11 @@
       <div class="form-group">
         <div class="form-group__title">进度与描述</div>
         <el-form-item label="进度">
-          <div :class="['progress-slider', progressClass]" style="width: 100%">
+          <div v-if="props.progressDisabled" class="auto-progress-hint">
+            <el-progress :percentage="form.progress" :stroke-width="8" />
+            <el-tag size="small" type="info" effect="plain" round>自动计算，不可手动调整</el-tag>
+          </div>
+          <div v-else :class="['progress-slider', progressClass]" style="width: 100%">
             <el-slider
               v-model="form.progress"
               :step="5"
@@ -105,6 +104,7 @@ const props = defineProps({
   initialForm: { type: Object, default: null },
   versionList: { type: Array, default: () => [] },
   userList: { type: Array, default: () => [] },
+  progressDisabled: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:visible', 'saved']);
@@ -119,7 +119,7 @@ const defaultForm = () => ({
   type: '开发',
   priority: '中',
   status: '未开始',
-  assignee: null,
+  assignee: [],
   deadline: '',
   progress: 0,
   description: '',
@@ -162,11 +162,16 @@ const handleSubmit = async () => {
   if (!formRef.value) return;
   try {
     await formRef.value.validate();
+    const payload = { ...form.value };
+    payload.assignee_ids = payload.assignee || [];
+    delete payload.assignee;
+    if (!payload.deadline) payload.deadline = null;
+    if (props.progressDisabled) delete payload.progress;
     if (props.editingId) {
-      await updateTask(props.editingId, form.value);
+      await updateTask(props.editingId, payload);
       ElMessage.success('任务已更新');
     } else {
-      await createTask(form.value);
+      await createTask(payload);
       ElMessage.success('任务已创建');
     }
     emit('update:visible', false);
@@ -218,5 +223,16 @@ const handleSubmit = async () => {
   &.progress-mid :deep(.el-slider__button) { border-color: #409eff; }
   &.progress-high :deep(.el-slider__button) { border-color: #67c23a; }
   &.progress-done :deep(.el-slider__button) { border-color: #67c23a; }
+}
+
+.auto-progress-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+
+  .el-progress {
+    flex: 1;
+  }
 }
 </style>

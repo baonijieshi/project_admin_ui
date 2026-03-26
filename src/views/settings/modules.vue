@@ -79,19 +79,15 @@
     >
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="90px">
         <el-form-item label="父模块">
-          <el-select
-            v-model="form.parent"
+          <el-cascader
+            v-model="form.parentPath"
+            :options="moduleTreeOptions"
+            :props="{ checkStrictly: true, value: 'id', label: 'name', children: 'children', emitPath: true }"
             placeholder="无（顶级模块）"
             clearable
+            filterable
             style="width: 100%"
-          >
-            <el-option
-              v-for="m in flatModules"
-              :key="m.id"
-              :label="m.fullName"
-              :value="m.id"
-            />
-          </el-select>
+          />
         </el-form-item>
         <el-form-item label="模块名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入模块名称" />
@@ -115,7 +111,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getModuleList,
@@ -128,6 +124,21 @@ import {
 const queryParams = ref({ name: '', status: '' });
 const modules = ref([]);
 const flatModules = ref([]);
+
+// 将树形模块数据转为 cascader 所需格式（排除当前编辑的节点，避免自引用，最多 3 层可选作为父级）
+const moduleTreeOptions = computed(() => {
+  const buildOptions = (nodes, depth = 1) => nodes
+    .filter((n) => n.id !== editingId.value)
+    .map((n) => ({
+      id: n.id,
+      name: n.name,
+      // 父级最多选到第 3 层（子模块挂上去就是第 4 层）
+      children: n.children && n.children.length && depth < 3
+        ? buildOptions(n.children, depth + 1)
+        : undefined,
+    }));
+  return buildOptions(modules.value);
+});
 
 const fetchList = async () => {
   try {
@@ -167,7 +178,7 @@ const formRef = ref(null);
 const editingId = ref(null);
 
 const form = ref({
-  parent: null,
+  parentPath: [],
   name: '',
   description: '',
   status: '启用',
@@ -177,11 +188,19 @@ const formRules = {
   name: [{ required: true, message: '请输入模块名称', trigger: 'blur' }],
 };
 
+// 根据 parent id 在树中找完整路径
+const findParentPath = (nodes, targetId, path = []) => nodes.reduce((result, node) => {
+  if (result) return result;
+  if (node.id === targetId) return [...path, node.id];
+  if (node.children) return findParentPath(node.children, targetId, [...path, node.id]);
+  return null;
+}, null);
+
 const handleAdd = (parentRow) => {
   editingId.value = null;
   dialogTitle.value = '新建模块';
   form.value = {
-    parent: parentRow ? parentRow.id : null,
+    parentPath: parentRow ? findParentPath(modules.value, parentRow.id) || [parentRow.id] : [],
     name: '',
     description: '',
     status: '启用',
@@ -193,7 +212,7 @@ const handleEdit = (row) => {
   editingId.value = row.id;
   dialogTitle.value = '编辑模块';
   form.value = {
-    parent: row.parent || null,
+    parentPath: row.parent ? findParentPath(modules.value, row.parent) || [row.parent] : [],
     name: row.name,
     description: row.description || '',
     status: row.status,
@@ -208,7 +227,9 @@ const handleSubmit = async () => {
     const payload = {
       name: form.value.name,
       description: form.value.description,
-      parent: form.value.parent || null,
+      parent: form.value.parentPath && form.value.parentPath.length
+        ? form.value.parentPath[form.value.parentPath.length - 1]
+        : null,
       status: form.value.status,
     };
     if (editingId.value) {

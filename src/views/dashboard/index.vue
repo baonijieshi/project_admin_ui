@@ -26,7 +26,7 @@
           <template #header>
             <div class="section-header">
               <span>待办任务</span>
-              <el-tag size="small" type="info" style="cursor:pointer" @click="router.push('/task')">{{ todoTasks.length }} 项</el-tag>
+              <el-tag size="small" type="info">{{ todoTasks.length }} 项</el-tag>
             </div>
           </template>
           <div class="item-list">
@@ -35,14 +35,14 @@
               v-for="task in todoTasks"
               :key="task.id"
               class="list-item clickable"
-              @click="router.push({ path: '/task', query: { openId: task.id } })"
+              @click="handleTaskClick(task)"
             >
               <div class="item-main">
                 <el-tag :type="getPriorityType(task.priority)" size="small" class="item-tag">{{ task.priority }}</el-tag>
                 <span class="item-title">{{ task.name }}</span>
               </div>
               <div class="item-meta">
-                <span class="meta-project">{{ task.project }}</span>
+                <span class="meta-project">{{ task.versionName || '未关联版本' }}</span>
                 <span v-if="task.deadline" class="meta-date">{{ task.deadline }}</span>
                 <el-tag
                   v-if="task.deadline && isTaskOverdue(task.deadline)"
@@ -88,36 +88,36 @@
       </el-col>
     </el-row>
 
-    <!-- 项目进度 -->
+    <!-- 版本进度 -->
     <el-card shadow="hover" style="margin-top: 16px">
       <template #header>
         <div class="section-header">
-          <span>项目进度</span>
-          <el-link type="primary" :underline="false" @click="router.push('/project')">查看全部</el-link>
+          <span>版本进度</span>
+          <el-link type="primary" :underline="false" @click="router.push('/project/versions')">查看全部</el-link>
         </div>
       </template>
       <el-row :gutter="16" class="project-grid">
-        <div v-if="projectProgress.length === 0" class="empty-tip" style="padding: 20px">暂无项目</div>
+        <div v-if="versionProgress.length === 0" class="empty-tip" style="padding: 20px">暂无版本</div>
         <el-col
-          v-for="proj in projectProgress"
-          :key="proj.name"
+          v-for="ver in versionProgress"
+          :key="ver.id"
           :span="8"
           style="margin-bottom: 16px"
         >
-          <div class="project-card clickable" @click="router.push({ path: '/project', query: { openId: proj.id } })">
+          <div class="project-card clickable" @click="router.push({ path: '/project/versions', query: { versionId: ver.id } })">
             <div class="project-card-header">
-              <span class="project-name">{{ proj.name }}</span>
-              <el-tag :type="getProjectStatusType(proj.status)" size="small">{{ proj.status }}</el-tag>
+              <span class="project-name">{{ ver.name }}</span>
+              <el-tag :type="getProjectStatusType(ver.status)" size="small">{{ ver.status }}</el-tag>
             </div>
             <el-progress
-              :percentage="proj.progress"
-              :color="progressColor(proj.progress)"
+              :percentage="ver.progress"
+              :color="progressColor(ver.progress)"
               :stroke-width="8"
               style="margin: 10px 0 8px"
             />
             <div class="project-card-footer">
-              <span class="meta-project">{{ proj.manager }}</span>
-              <span class="task-stat">任务 {{ proj.taskDone }} / {{ proj.taskTotal }}</span>
+              <span class="meta-project">{{ ver.manager }}</span>
+              <span class="task-stat">任务 {{ ver.taskDone }} / {{ ver.taskTotal }}</span>
             </div>
           </div>
         </el-col>
@@ -134,6 +134,7 @@ import { getProjectList } from '@/api/project';
 import { getTaskList } from '@/api/task';
 import { getBugList } from '@/api/bug';
 import { getTestcaseList } from '@/api/testcase';
+import { getVersionList } from '@/api/version';
 
 const router = useRouter();
 const store = useStore();
@@ -143,7 +144,7 @@ const stats = ref([
     title: '项目总数', value: 0, icon: 'Folder', bgColor: '#409eff', path: '/project',
   },
   {
-    title: '进行中任务', value: 0, icon: 'List', bgColor: '#67c23a', path: '/task',
+    title: '进行中任务', value: 0, icon: 'List', bgColor: '#67c23a', path: '/project/versions',
   },
   {
     title: '待修复Bug', value: 0, icon: 'Warning', bgColor: '#f56c6c', path: '/test/bug',
@@ -155,12 +156,12 @@ const stats = ref([
 
 const todoTasks = ref([]);
 const recentBugs = ref([]);
-const projectProgress = ref([]);
+const versionProgress = ref([]);
 
 const fetchData = async () => {
   try {
     const userId = store.state.user?.id;
-    const [projRes, taskInProgressRes, bugPendingRes, testcaseRes, todoRes, recentBugRes, projListRes] = await Promise.all([
+    const [projRes, taskInProgressRes, bugPendingRes, testcaseRes, todoRes, recentBugRes, versionListRes] = await Promise.all([
       getProjectList({ page: 1, pageSize: 1 }),
       getTaskList({ status: '进行中', page: 1, pageSize: 1 }),
       getBugList({ status: '待处理,处理中', page: 1, pageSize: 1 }),
@@ -177,7 +178,7 @@ const fetchData = async () => {
         },
       }),
       getBugList({ status: '待处理,处理中', page: 1, pageSize: 10 }),
-      getProjectList({ page: 1, pageSize: 6 }),
+      getVersionList({ page: 1, pageSize: 6 }),
     ]);
 
     stats.value[0].value = projRes.data.total || 0;
@@ -188,7 +189,8 @@ const fetchData = async () => {
     todoTasks.value = (todoRes.data.list || []).map((t) => ({
       id: t.id,
       name: t.name,
-      project: t.project_name || '',
+      versionId: t.version,
+      versionName: t.version_name || '',
       priority: t.priority,
       deadline: t.deadline,
     }));
@@ -201,14 +203,14 @@ const fetchData = async () => {
       assignee: b.assignee_name || '',
     }));
 
-    projectProgress.value = (projListRes.data.list || []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      manager: p.manager_name || '',
-      progress: p.progress || 0,
-      status: p.status,
-      taskDone: p.task_done || 0,
-      taskTotal: p.task_total || 0,
+    versionProgress.value = (versionListRes.data.list || []).map((v) => ({
+      id: v.id,
+      name: v.name,
+      manager: v.manager_name || '',
+      progress: v.progress || 0,
+      status: v.status,
+      taskDone: v.task_done || 0,
+      taskTotal: v.task_total || 0,
     }));
   } catch {
     // 获取首页数据失败
@@ -216,6 +218,12 @@ const fetchData = async () => {
 };
 
 onMounted(fetchData);
+
+const handleTaskClick = (task) => {
+  if (task.versionId) {
+    router.push({ path: '/project/versions', query: { versionId: task.versionId } });
+  }
+};
 
 const isTaskOverdue = (deadline) => new Date(deadline) < new Date(new Date().toDateString());
 

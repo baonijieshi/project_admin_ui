@@ -8,7 +8,7 @@
   >
     <el-form ref="formRef" :model="form" :rules="formRules" label-width="90px">
       <el-row :gutter="20">
-        <el-col :span="12">
+        <el-col v-if="!isBaseline" :span="12">
           <el-form-item label="关联版本">
             <el-select
               v-model="form.versionId"
@@ -22,15 +22,15 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="所属模块">
-            <el-select
-              v-model="form.module"
+            <el-cascader
+              v-model="form.moduleId"
+              :options="moduleOptions"
               placeholder="请选择模块（可选）"
               clearable
               filterable
               style="width: 100%"
-            >
-              <el-option v-for="m in moduleOptions" :key="m.id" :label="m.name" :value="m.name" />
-            </el-select>
+              :props="{ checkStrictly: true, emitPath: false }"
+            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -131,6 +131,7 @@ const props = defineProps({
   versionOptions: { type: Array, default: () => [] },
   storyOptions: { type: Array, default: () => [] },
   moduleOptions: { type: Array, default: () => [] },
+  isBaseline: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:visible', 'saved']);
@@ -140,6 +141,7 @@ const title = ref('新建用例');
 
 const defaultForm = () => ({
   versionId: null,
+  moduleId: null,
   module: '',
   type: '功能测试',
   title: '',
@@ -149,6 +151,26 @@ const defaultForm = () => ({
   steps: [{ desc: '', expect: '' }],
   remark: '',
 });
+
+// 通过 ID 在 cascader 树中查找完整路径字符串，如 "前端 / 登录模块"
+function findModulePath(options, id, ancestors = []) {
+  return options.reduce((result, node) => {
+    if (result) return result;
+    const path = [...ancestors, node.label];
+    if (node.value === id) return path.join(' / ');
+    return node.children ? findModulePath(node.children, id, path) : null;
+  }, null) || '';
+}
+
+// 通过路径字符串在 cascader 树中反查 ID
+function findModuleIdByPath(options, pathStr, ancestors = []) {
+  return options.reduce((result, node) => {
+    if (result) return result;
+    const path = [...ancestors, node.label];
+    if (path.join(' / ') === pathStr) return node.value;
+    return node.children ? findModuleIdByPath(node.children, pathStr, path) : null;
+  }, null);
+}
 
 const form = ref(defaultForm());
 
@@ -160,9 +182,17 @@ const formRules = {
 
 watch(() => props.visible, (val) => {
   if (val) {
-    title.value = props.editingId ? '编辑用例' : '新建用例';
+    if (props.editingId) {
+      title.value = '编辑用例';
+    } else {
+      title.value = props.isBaseline ? '新建基线用例' : '新建用例';
+    }
     form.value = props.initialForm
-      ? { ...props.initialForm, steps: props.initialForm.steps.map((s) => ({ ...s })) }
+      ? {
+        ...props.initialForm,
+        moduleId: findModuleIdByPath(props.moduleOptions, props.initialForm.module || ''),
+        steps: props.initialForm.steps.map((s) => ({ ...s })),
+      }
       : defaultForm();
   }
 });
@@ -176,11 +206,14 @@ const handleSubmit = async () => {
     await formRef.value.validate();
     const payload = {
       ...form.value,
+      module: form.value.moduleId ? findModulePath(props.moduleOptions, form.value.moduleId) : '',
       version: form.value.versionId || null,
       story: form.value.storyId || null,
+      is_baseline: props.isBaseline,
     };
     delete payload.versionId;
     delete payload.storyId;
+    delete payload.moduleId;
     if (props.editingId) {
       await updateTestcase(props.editingId, payload);
       ElMessage.success('用例已更新');

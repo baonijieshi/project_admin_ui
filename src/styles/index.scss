@@ -134,3 +134,37 @@ div:focus {
 :deep(.el-table .el-button + .el-button) {
   margin-left: 4px;
 }
+
+
+// ===== 全局滚动条美化：默认隐藏，hover 时显示细滚动条 =====
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+
+  &:hover {
+    scrollbar-color: rgba(144, 147, 153, 0.3) transparent;
+  }
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(144, 147, 153, 0.3);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(144, 147, 153, 0.5);
+}

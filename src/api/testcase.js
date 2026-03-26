@@ -61,3 +61,19 @@ export function importXmind(file) {
 export function getTemplateUrl() {
   return '/api/testcase/template';
 }
+
+export function addToBaseline(ids) {
+  return request({
+    url: '/testcase/add-to-baseline',
+    method: 'post',
+    data: { ids },
+  });
+}
+
+export function importFromBaseline(ids, versionId) {
+  return request({
+    url: '/testcase/import-from-baseline',
+    method: 'post',
+    data: { ids, version_id: versionId },
+  });
+}

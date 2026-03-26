@@ -27,10 +27,14 @@ import { Sidebar, Navbar, AppMain } from './components';
 
 .main-container {
   min-height: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   transition: margin-left 0.28s;
   margin-left: 210px;
   position: relative;
   background-color: #f0f2f5;
+  overflow: hidden;
 }
 
 .sidebar-container {

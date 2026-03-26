@@ -44,14 +44,7 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="指派给" prop="assignee">
-            <el-select v-model="bugForm.assignee" placeholder="请选择" style="width: 100%">
-              <el-option v-for="u in userOptions" :key="u.id" :label="u.label" :value="u.id">
-                <div style="display: flex; align-items: center; gap: 6px">
-                  <el-avatar :src="u.avatar" :size="20">{{ u.label.charAt(0) }}</el-avatar>
-                  <span>{{ u.label }}</span>
-                </div>
-              </el-option>
-            </el-select>
+            <UserCascader v-model="bugForm.assignee" :user-list="userOptions" placeholder="请选择" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -78,6 +71,7 @@
 import { ref, watch, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { createBug } from '@/api/bug';
+import UserCascader from '@/components/UserCascader.vue';
 
 const props = defineProps({
   visible: Boolean,

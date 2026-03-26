@@ -3,6 +3,8 @@
     <breadcrumb class="breadcrumb-container" />
 
     <div class="right-menu">
+      <notification-bell @toggle="notificationPanelVisible = !notificationPanelVisible" />
+      <notification-panel v-model:visible="notificationPanelVisible" />
       <el-dropdown class="avatar-container" trigger="click">
         <div class="avatar-wrapper">
           <el-avatar
@@ -17,6 +19,9 @@
           <el-dropdown-menu>
             <el-dropdown-item @click="openAvatarDialog">
               <el-icon><Camera /></el-icon>修改头像
+            </el-dropdown-item>
+            <el-dropdown-item @click="openPasswordDialog">
+              <el-icon><Lock /></el-icon>修改密码
             </el-dropdown-item>
             <el-dropdown-item divided @click="logout">
               <el-icon><SwitchButton /></el-icon>退出登录
@@ -48,22 +53,48 @@
         <el-button type="primary" :disabled="!previewUrl" :loading="saving" @click="saveAvatar">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 修改密码对话框 -->
+    <el-dialog v-model="passwordDialogVisible" title="修改密码" width="400px" :close-on-click-modal="false" @closed="resetPasswordForm">
+      <el-form ref="passwordFormRef" :model="passwordForm" :rules="passwordRules" label-width="80px">
+        <el-form-item label="旧密码" prop="oldPassword">
+          <el-input v-model="passwordForm.oldPassword" type="password" show-password placeholder="请输入旧密码" />
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="passwordForm.newPassword" type="password" show-password placeholder="请输入新密码（至少6位）" />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password placeholder="请再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="passwordDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="passwordSaving" @click="handleChangePassword">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import {
+  ref, computed, reactive, onMounted,
+} from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
-  Camera, SwitchButton, Upload,
+  Camera, SwitchButton, Upload, Lock,
 } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { uploadImage } from '@/api/upload';
+import { changePassword } from '@/api/user';
 import Breadcrumb from './Breadcrumb.vue';
+import NotificationBell from './NotificationBell.vue';
+import NotificationPanel from './NotificationPanel.vue';
 
 const router = useRouter();
 const store = useStore();
+
+const notificationPanelVisible = ref(false);
 
 const userName = computed(() => store.getters.name || '用户');
 const avatar = computed(() => store.getters.avatar);
@@ -113,6 +144,60 @@ const saveAvatar = async () => {
   }
 };
 
+// 修改密码
+const passwordDialogVisible = ref(false);
+const passwordSaving = ref(false);
+const passwordFormRef = ref(null);
+const passwordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+});
+const passwordRules = {
+  oldPassword: [{ required: true, message: '请输入旧密码', trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' },
+  ],
+  confirmPassword: [
+    { required: true, message: '请确认新密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== passwordForm.newPassword) callback(new Error('两次输入的密码不一致'));
+        else callback();
+      },
+      trigger: 'blur',
+    },
+  ],
+};
+const openPasswordDialog = () => { passwordDialogVisible.value = true; };
+const resetPasswordForm = () => {
+  passwordForm.oldPassword = '';
+  passwordForm.newPassword = '';
+  passwordForm.confirmPassword = '';
+};
+const handleChangePassword = async () => {
+  if (!passwordFormRef.value) return;
+  await passwordFormRef.value.validate();
+  passwordSaving.value = true;
+  try {
+    const res = await changePassword({
+      oldPassword: passwordForm.oldPassword,
+      newPassword: passwordForm.newPassword,
+    });
+    ElMessage.success(res.message || '密码修改成功');
+    passwordDialogVisible.value = false;
+  } catch {
+    ElMessage.error('修改失败，请检查旧密码是否正确');
+  } finally {
+    passwordSaving.value = false;
+  }
+};
+
+onMounted(() => {
+  store.dispatch('notification/startPolling');
+});
+
 const logout = async () => {
   try {
     await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
@@ -120,6 +205,7 @@ const logout = async () => {
       cancelButtonText: '取消',
       type: 'warning',
     });
+    await store.dispatch('notification/stopPolling');
     await store.dispatch('user/logout');
     ElMessage.success('退出成功');
     router.push('/login');
@@ -132,8 +218,10 @@ const logout = async () => {
 <style lang="scss" scoped>
 .navbar {
   height: 50px;
-  overflow: hidden;
+  flex-shrink: 0;
+  overflow: visible;
   position: relative;
+  z-index: 10;
   background: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   display: flex;

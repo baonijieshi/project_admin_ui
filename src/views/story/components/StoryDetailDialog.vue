@@ -11,8 +11,8 @@
   >
     <template v-if="row">
       <div class="detail-actions">
-        <el-button type="primary" @click="handleCreateProject">
-          <el-icon><FolderAdd /></el-icon>创建关联项目
+        <el-button type="primary" @click="handleCreateVersion">
+          <el-icon><FolderAdd /></el-icon>创建关联版本
         </el-button>
       </div>
 
@@ -129,7 +129,7 @@
                   size="small"
                   link
                   type="primary"
-                  @click.stop="toggleReply(c)"
+                  @click.stop="toggleReply(c, null)"
                 >回复</el-button>
                 <el-button
                   class="comment-delete"
@@ -154,38 +154,54 @@
                       <div v-else class="comment-avatar reply-avatar comment-avatar-default">
                         {{ (r.author_name || '匿')[0] }}
                       </div>
-                      <span class="comment-author">{{ r.author_name || '匿名' }}</span>
+                      <span class="comment-author">
+                        {{ r.author_name || '匿名' }}
+                        <span v-if="r.reply_to_name" class="reply-to-label">
+                          回复 {{ r.reply_to_name }}
+                        </span>
+                      </span>
                     </div>
                     <span class="comment-time">{{ formatTime(r.created_at) }}</span>
                   </div>
                   <div class="comment-content reply-content">{{ r.content }}</div>
-                  <el-button
-                    class="comment-delete"
-                    size="small"
-                    link
-                    type="danger"
-                    @click.stop="deleteComment(r.id)"
-                  >删除</el-button>
+                  <div class="reply-item-actions">
+                    <el-button
+                      size="small"
+                      link
+                      type="primary"
+                      @click.stop="toggleReply(r, c.id)"
+                    >回复</el-button>
+                    <el-button
+                      size="small"
+                      link
+                      type="danger"
+                      @click.stop="deleteComment(r.id)"
+                    >删除</el-button>
+                  </div>
                 </div>
               </div>
 
               <!-- 回复输入框 -->
-              <div v-if="replyingTo === c.id" class="reply-input" @click.stop>
+              <div v-if="replyingTo === c.id || replyingRoot === c.id" class="reply-input" @click.stop>
+                <div v-if="replyingToName" class="replying-hint">
+                  回复 {{ replyingToName }}
+                  <el-button size="small" link @click.stop="cancelReply">取消</el-button>
+                </div>
                 <el-input
                   v-model="replyContent"
                   type="textarea"
                   :rows="2"
-                  placeholder="回复评论..."
+                  :placeholder="replyingToName ? `回复 ${replyingToName}...` : '回复评论...'"
                   resize="none"
                   size="small"
                 />
                 <div class="reply-input-actions">
-                  <el-button size="small" @click.stop="replyingTo = null">取消</el-button>
+                  <el-button size="small" @click.stop="cancelReply">取消</el-button>
                   <el-button
                     size="small"
                     type="primary"
                     :disabled="!replyContent.trim()"
-                    @click.stop="submitReply(c.id)"
+                    @click.stop="submitReply(replyingTo)"
                   >回复</el-button>
                 </div>
               </div>
@@ -295,10 +311,31 @@ const submitComment = async (quoteData) => {
 
 // ---- 回复 ----
 const replyingTo = ref(null);
+const replyingRoot = ref(null);
+const replyingToName = ref('');
 const replyContent = ref('');
 
-const toggleReply = (c) => {
-  replyingTo.value = replyingTo.value === c.id ? null : c.id;
+const toggleReply = (comment, rootId) => {
+  // comment 可以是顶级评论或回复，rootId 是所属顶级评论的 id
+  const targetId = comment.id;
+  const root = rootId || targetId;
+  if (replyingTo.value === targetId) {
+    replyingTo.value = null;
+    replyingRoot.value = null;
+    replyingToName.value = '';
+    replyContent.value = '';
+    return;
+  }
+  replyingTo.value = targetId;
+  replyingRoot.value = root;
+  replyingToName.value = comment.author_name || '';
+  replyContent.value = '';
+};
+
+const cancelReply = () => {
+  replyingTo.value = null;
+  replyingRoot.value = null;
+  replyingToName.value = '';
   replyContent.value = '';
 };
 
@@ -309,8 +346,7 @@ const submitReply = async (parentId) => {
       content: replyContent.value.trim(),
       parent_id: parentId,
     });
-    replyContent.value = '';
-    replyingTo.value = null;
+    cancelReply();
     await fetchComments();
   } catch (e) {
     ElMessage.error('回复失败');
@@ -435,6 +471,8 @@ watch(() => props.visible, (val) => {
     activeQuoteId.value = null;
     comments.value = [];
     replyingTo.value = null;
+    replyingRoot.value = null;
+    replyingToName.value = '';
     replyContent.value = '';
   }
 });
@@ -444,10 +482,10 @@ const statusType = (s) => ({
   激活: 'primary', 开发中: 'warning', 已完成: 'success', 已关闭: 'info',
 }[s] || 'info');
 
-const handleCreateProject = () => {
+const handleCreateVersion = () => {
   emit('update:visible', false);
   router.push({
-    path: '/project',
+    path: '/project/versions',
     query: {
       storyId: props.row.id, storyTitle: props.row.title,
     },
@@ -807,6 +845,29 @@ const handleCreateProject = () => {
 .reply-content {
   font-size: 12px;
   padding-left: 26px;
+}
+
+.reply-to-label {
+  font-weight: 400;
+  color: #909399;
+  font-size: 11px;
+  margin-left: 2px;
+}
+
+.reply-item-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+  padding-left: 26px;
+}
+
+.replying-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .reply-input {

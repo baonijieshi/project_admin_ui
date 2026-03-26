@@ -129,7 +129,7 @@
         </el-row>
         <el-row :gutter="24">
           <el-col :span="12">
-            <el-form-item label="部门">
+            <el-form-item label="部门" prop="dept">
               <el-select v-model="memberForm.dept" placeholder="请选择部门" style="width: 100%">
                 <el-option v-for="d in deptOptions" :key="d" :label="d" :value="d" />
               </el-select>
@@ -312,6 +312,7 @@ const formRules = computed(() => {
       { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' },
     ],
     roleIds: [{ required: true, message: '请选择角色', trigger: 'change' }],
+    dept: [{ required: true, message: '请选择部门', trigger: 'change' }],
   };
   if (!editingId.value) {
     rules.password = [{ required: true, message: '请输入初始密码', trigger: 'blur' }];

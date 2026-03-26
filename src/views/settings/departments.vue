@@ -77,14 +77,7 @@
           <el-input v-model="deptForm.description" type="textarea" :rows="2" placeholder="请输入部门描述" />
         </el-form-item>
         <el-form-item label="负责人">
-          <el-select v-model="deptForm.leader" placeholder="请选择负责人" clearable style="width: 100%">
-            <el-option
-              v-for="u in userOptions"
-              :key="u.id"
-              :label="u.name"
-              :value="u.id"
-            />
-          </el-select>
+          <UserCascader v-model="deptForm.leader" :user-list="userOptions" placeholder="请选择负责人" />
         </el-form-item>
         <el-row :gutter="24">
           <el-col :span="12">
@@ -121,6 +114,7 @@ import {
   deleteDept,
 } from '@/api/department';
 import { getUserList } from '@/api/user';
+import UserCascader from '@/components/UserCascader.vue';
 
 const router = useRouter();
 
@@ -144,6 +138,8 @@ const fetchUsers = async () => {
     userOptions.value = (res.data || []).map((u) => ({
       id: u.id,
       name: u.first_name || u.username,
+      label: u.first_name || u.username,
+      dept: u.dept || '',
     }));
   } catch {
     // 获取用户列表失败

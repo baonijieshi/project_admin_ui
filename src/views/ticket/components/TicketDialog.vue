@@ -47,40 +47,19 @@
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="当前处理人">
-            <el-select v-model="form.assignee" placeholder="请选择" clearable filterable style="width:100%">
-              <el-option v-for="u in userList" :key="u.id" :label="u.label" :value="u.id">
-                <div class="user-option">
-                  <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                  <span>{{ u.label }}</span>
-                </div>
-              </el-option>
-            </el-select>
+            <UserCascader v-model="form.assignee" :user-list="userList" placeholder="请选择" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="测试处理人">
-            <el-select v-model="form.test_assignee" placeholder="请选择" clearable filterable style="width:100%">
-              <el-option v-for="u in testUserList" :key="u.id" :label="u.label" :value="u.id">
-                <div class="user-option">
-                  <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                  <span>{{ u.label }}</span>
-                </div>
-              </el-option>
-            </el-select>
+            <UserCascader v-model="form.test_assignee" :user-list="testUserList" placeholder="请选择" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="研发处理人">
-            <el-select v-model="form.dev_assignee" placeholder="请选择" clearable filterable style="width:100%">
-              <el-option v-for="u in devUserList" :key="u.id" :label="u.label" :value="u.id">
-                <div class="user-option">
-                  <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                  <span>{{ u.label }}</span>
-                </div>
-              </el-option>
-            </el-select>
+            <UserCascader v-model="form.dev_assignee" :user-list="devUserList" placeholder="请选择" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -145,6 +124,7 @@ import '@wangeditor/editor/dist/css/style.css';
 import { createTicket, updateTicket } from '@/api/ticket';
 import { getModuleFlatList } from '@/api/module';
 import request from '@/utils/request';
+import UserCascader from '@/components/UserCascader.vue';
 import { STEPS, stepIndex, typeOptions } from '../ticketConstants';
 
 const props = defineProps({

@@ -8,6 +8,7 @@ const getters = {
   roles: (state) => state.user.roles,
   permissions: (state) => state.user.permissions,
   menus: (state) => state.user.menus,
+  unreadCount: (state) => state.notification.unreadCount,
 };
 
 export default getters;

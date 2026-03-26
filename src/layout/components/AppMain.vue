@@ -10,10 +10,10 @@
 
 <style lang="scss" scoped>
 .app-main {
-  min-height: calc(100vh - 50px);
+  flex: 1;
   width: 100%;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
   padding: 20px;
   background-color: #f0f2f5;
 }

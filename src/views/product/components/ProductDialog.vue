@@ -11,14 +11,7 @@
         <el-input v-model="form.line" placeholder="请输入产品线" />
       </el-form-item>
       <el-form-item label="负责人">
-        <el-select v-model="form.owner" placeholder="请选择负责人" clearable style="width: 100%">
-          <el-option v-for="u in userOptions" :key="u.id" :label="u.label" :value="u.id">
-            <div class="user-option">
-              <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-              <span>{{ u.label }}</span>
-            </div>
-          </el-option>
-        </el-select>
+        <UserCascader v-model="form.owner" :user-list="userOptions" placeholder="请选择负责人" />
       </el-form-item>
       <el-form-item label="状态">
         <el-select v-model="form.status" style="width: 100%">
@@ -41,6 +34,7 @@
 import { ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { createProduct, updateProduct } from '@/api/product';
+import UserCascader from '@/components/UserCascader.vue';
 
 const props = defineProps({
   visible: Boolean,

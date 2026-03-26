@@ -25,6 +25,12 @@
     </div>
 
     <el-card class="main-card">
+      <!-- Tab 切换 -->
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+        <el-tab-pane label="版本用例" name="version" />
+        <el-tab-pane label="基线用例" name="baseline" />
+      </el-tabs>
+
       <!-- 工具栏 -->
       <div class="list-toolbar">
         <div class="toolbar-left">
@@ -51,9 +57,16 @@
             <el-option label="阻塞" value="阻塞" />
             <el-option label="未执行" value="未执行" />
           </el-select>
-          <el-select v-model="queryParams.module" placeholder="所属模块" clearable filterable style="width:130px" @change="handleSearch">
-            <el-option v-for="m in moduleOptions" :key="m.id" :label="m.name" :value="m.id" />
-          </el-select>
+          <el-cascader
+            v-model="queryParams.module"
+            :options="moduleOptions"
+            placeholder="所属模块"
+            clearable
+            filterable
+            style="width:150px"
+            :props="{ checkStrictly: true, emitPath: false }"
+            @change="handleSearch"
+          />
 
           <!-- 更多筛选展开 -->
           <el-popover placement="bottom-start" :width="480" trigger="click">
@@ -66,9 +79,9 @@
             </template>
             <el-form :model="queryParams" label-width="80px" size="small">
               <el-row :gutter="12">
-                <el-col :span="12">
+                <el-col v-if="activeTab === 'version'" :span="12">
                   <el-form-item label="关联版本">
-                    <el-select v-model="queryParams.version" placeholder="全部" clearable style="width:100%">
+                    <el-select v-model="queryParams.version" placeholder="全部" clearable filterable style="width:100%">
                       <el-option v-for="v in versionOptions" :key="v.id" :label="v.name" :value="v.id" />
                     </el-select>
                   </el-form-item>
@@ -86,17 +99,10 @@
                 </el-col>
                 <el-col :span="12">
                   <el-form-item label="创建人">
-                    <el-select v-model="queryParams.creator" placeholder="全部" clearable style="width:100%">
-                      <el-option v-for="u in userOptions" :key="u.label" :label="u.label" :value="u.label">
-                        <div class="user-option">
-                          <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-                          <span>{{ u.label }}</span>
-                        </div>
-                      </el-option>
-                    </el-select>
+                    <UserCascader v-model="queryParams.creator" :user-list="userOptions" value-key="label" placeholder="全部" />
                   </el-form-item>
                 </el-col>
-                <el-col :span="12">
+                <el-col v-if="activeTab === 'version'" :span="12">
                   <el-form-item label="关联需求">
                     <el-select v-model="queryParams.storyId" placeholder="全部" clearable filterable style="width:100%">
                       <el-option v-for="s in storyOptions" :key="s.id" :label="s.title" :value="s.id" />
@@ -116,10 +122,18 @@
           <!-- 批量操作（有选中时显示） -->
           <template v-if="selectedIds.length > 0">
             <span class="selected-tip">已选 {{ selectedIds.length }} 条</span>
+            <!-- 版本用例 Tab：加入基线 -->
+            <el-button v-if="activeTab === 'version'" size="small" type="warning" plain @click="handleAddToBaseline">
+              <el-icon><Star /></el-icon>加入基线
+            </el-button>
+            <!-- 基线用例 Tab：导入到版本 -->
+            <el-button v-if="activeTab === 'baseline'" size="small" type="success" plain @click="importToVersionVisible = true">
+              <el-icon><Download /></el-icon>导入到版本
+            </el-button>
             <el-button size="small" type="success" @click="handleBatchRun">
               <el-icon><VideoPlay /></el-icon>批量执行
             </el-button>
-            <el-button size="small" type="primary" plain @click="batchStoryVisible = true">
+            <el-button v-if="activeTab === 'version'" size="small" type="primary" plain @click="batchStoryVisible = true">
               <el-icon><Link /></el-icon>关联需求
             </el-button>
             <el-button size="small" type="danger" plain @click="handleBatchDelete">
@@ -127,7 +141,7 @@
             </el-button>
             <el-divider direction="vertical" />
           </template>
-          <el-button type="warning" plain @click="importDialogVisible = true">
+          <el-button v-if="activeTab === 'version'" type="warning" plain @click="importDialogVisible = true">
             <el-icon><Upload /></el-icon>导入 XMind
           </el-button>
           <el-button type="primary" @click="handleAdd">
@@ -143,6 +157,7 @@
         row-key="id"
         @selection-change="onSelectionChange"
         @row-click="(row) => handleDetail(row)"
+        @sort-change="handleSortChange"
         row-class-name="case-row"
       >
         <el-table-column type="selection" width="46" @click.stop />
@@ -158,7 +173,7 @@
         </el-table-column>
         <el-table-column prop="type" label="类型" width="100" />
         <el-table-column prop="module" label="模块" width="130" show-overflow-tooltip />
-        <el-table-column prop="versionName" label="版本" width="130" show-overflow-tooltip />
+        <el-table-column v-if="activeTab === 'version'" prop="versionName" label="版本" width="130" show-overflow-tooltip />
         <el-table-column label="执行结果" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="resultType(row.lastResult)" size="small">{{ row.lastResult }}</el-tag>
@@ -172,7 +187,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="155">
+        <el-table-column prop="createTime" label="创建时间" width="155" sortable="custom">
           <template #default="{ row }">
             <span class="time-text">{{ row.createTime }}</span>
           </template>
@@ -187,8 +202,10 @@
         <template #empty>
           <div class="empty-state">
             <el-icon size="48" color="#dcdfe6"><DocumentChecked /></el-icon>
-            <p>暂无测试用例</p>
-            <el-button type="primary" size="small" :icon="Plus" @click="handleAdd">新建第一个用例</el-button>
+            <p>{{ activeTab === 'baseline' ? '暂无基线用例' : '暂无测试用例' }}</p>
+            <el-button type="primary" size="small" :icon="Plus" @click="handleAdd">
+              {{ activeTab === 'baseline' ? '新建基线用例' : '新建第一个用例' }}
+            </el-button>
           </div>
         </template>
       </el-table>
@@ -215,6 +232,7 @@
       :version-options="versionOptions"
       :story-options="storyOptions"
       :module-options="moduleOptions"
+      :is-baseline="activeTab === 'baseline'"
       @saved="fetchList"
     />
 
@@ -240,7 +258,11 @@
     <TestcaseDetailDrawer
       v-model:visible="detailVisible"
       :testcase="detailCase"
+      :current-index="detailIndex"
+      :total-count="testcases.length"
       @run="(row) => { detailVisible = false; handleRunSingle(row); }"
+      @prev="handleDetailPrev"
+      @next="handleDetailNext"
     />
 
     <TestcaseImportDialog
@@ -265,6 +287,24 @@
         <el-button type="primary" @click="handleBatchStory">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 从基线导入到版本 -->
+    <el-dialog v-model="importToVersionVisible" title="从基线导入到版本" width="400px" destroy-on-close>
+      <el-form label-width="80px" style="margin-top:8px">
+        <el-form-item label="目标版本">
+          <el-select v-model="importTargetVersion" placeholder="请选择版本" filterable style="width:100%">
+            <el-option v-for="v in versionOptions" :key="v.id" :label="v.name" :value="v.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="">
+          <span style="color:#909399; font-size:13px">已选 {{ selectedIds.length }} 条基线用例</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="importToVersionVisible = false">取消</el-button>
+        <el-button type="primary" :loading="importLoading" @click="handleImportFromBaseline">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -272,18 +312,30 @@
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
-  Search, Filter, Plus, VideoPlay, Link, Delete, Upload, DocumentChecked,
+  Search, Filter, Plus, VideoPlay, Link, Delete, Upload, Download, Star, DocumentChecked,
 } from '@element-plus/icons-vue';
-import { getTestcaseList, updateTestcase, deleteTestcase } from '@/api/testcase';
+import {
+  getTestcaseList, updateTestcase, deleteTestcase, addToBaseline, importFromBaseline,
+} from '@/api/testcase';
 import { getUserList } from '@/api/user';
 import { getStoryList } from '@/api/story';
 import { getVersionList } from '@/api/version';
-import { getModuleFlatList } from '@/api/module';
+import { getModuleList } from '@/api/module';
+import UserCascader from '@/components/UserCascader.vue';
 import TestcaseDialog from './components/TestcaseDialog.vue';
 import TestcaseRunDialog from './components/TestcaseRunDialog.vue';
 import TestcaseBugDialog from './components/TestcaseBugDialog.vue';
 import TestcaseDetailDrawer from './components/TestcaseDetailDrawer.vue';
 import TestcaseImportDialog from './components/TestcaseImportDialog.vue';
+
+// ── Tab 切换 ──────────────────────────────────────────────────
+const activeTab = ref('version');
+
+function handleTabChange() {
+  currentPage.value = 1;
+  selectedIds.value = [];
+  handleReset();
+}
 
 // ── 选项数据 ──────────────────────────────────────────────────
 const versionOptions = ref([]);
@@ -291,22 +343,33 @@ const userOptions = ref([]);
 const storyOptions = ref([]);
 const moduleOptions = ref([]);
 
+function buildCascaderOptions(nodes) {
+  return nodes.map((node) => {
+    const item = { value: node.id, label: node.name };
+    if (node.children && node.children.length) {
+      item.children = buildCascaderOptions(node.children);
+    }
+    return item;
+  });
+}
+
 const fetchOptions = async () => {
   try {
     const [userRes, storyRes, versionRes, moduleRes] = await Promise.all([
       getUserList(),
       getStoryList({ page: 1, pageSize: 999 }),
       getVersionList({ page: 1, pageSize: 999 }),
-      getModuleFlatList(),
+      getModuleList(),
     ]);
     userOptions.value = (userRes.data || []).map((u) => ({
       id: u.id,
       label: u.first_name || u.username,
       avatar: u.avatar || '',
+      dept: u.dept || '',
     }));
     storyOptions.value = (storyRes.data.list || []).map((s) => ({ id: s.id, title: s.title }));
     versionOptions.value = (versionRes.data.list || []).map((v) => ({ id: v.id, name: v.name }));
-    moduleOptions.value = (moduleRes.data || []).map((m) => ({ id: m.id, name: m.fullName }));
+    moduleOptions.value = buildCascaderOptions(moduleRes.data || []);
   } catch { /* ignore */ }
 };
 
@@ -327,7 +390,8 @@ const queryParams = ref({
   storyId: null,
 });
 
-// 统计（当前页数据）
+const sortOrdering = ref('');
+
 const stats = computed(() => ({
   p0: testcases.value.filter((t) => t.priority === 'P0').length,
   passed: testcases.value.filter((t) => t.lastResult === '通过').length,
@@ -335,7 +399,6 @@ const stats = computed(() => ({
   pending: testcases.value.filter((t) => t.lastResult === '未执行').length,
 }));
 
-// 更多筛选是否有值
 const hasMoreFilter = computed(() => !!(
   queryParams.value.version || queryParams.value.type
   || queryParams.value.creator || queryParams.value.storyId
@@ -354,6 +417,8 @@ function debounceFetch() {
 const fetchList = async () => {
   try {
     const params = { page: currentPage.value, pageSize: pageSize.value };
+    // 根据 Tab 传递 is_baseline 参数
+    params.is_baseline = activeTab.value === 'baseline' ? '1' : '0';
     const q = queryParams.value;
     if (q.title) params.title = q.title;
     if (q.version) params.version = q.version;
@@ -363,6 +428,7 @@ const fetchList = async () => {
     if (q.lastResult) params.lastResult = q.lastResult;
     if (q.creator) params.creator = q.creator;
     if (q.storyId) params.story = q.storyId;
+    if (sortOrdering.value) params.ordering = sortOrdering.value;
     const res = await getTestcaseList(params);
     testcases.value = (res.data.list || []).map((tc) => ({
       ...tc,
@@ -380,6 +446,18 @@ const fetchList = async () => {
 };
 
 const handleSearch = () => { currentPage.value = 1; fetchList(); };
+
+const handleSortChange = ({ prop, order }) => {
+  if (prop === 'createTime') {
+    if (order === 'ascending') sortOrdering.value = 'created_at';
+    else if (order === 'descending') sortOrdering.value = '-created_at';
+    else sortOrdering.value = '';
+  } else {
+    sortOrdering.value = '';
+  }
+  fetchList();
+};
+
 const handleReset = () => {
   queryParams.value = {
     title: '',
@@ -391,6 +469,7 @@ const handleReset = () => {
     creator: '',
     storyId: null,
   };
+  sortOrdering.value = '';
   currentPage.value = 1;
   fetchList();
 };
@@ -424,19 +503,63 @@ const handleEdit = (row) => {
 // ── 删除 ──────────────────────────────────────────────────────
 const handleDelete = (row) => {
   ElMessageBox.confirm(`确定删除用例「${row.title}」？`, '提示', { type: 'warning' })
-    .then(async () => { await deleteTestcase(row.id); ElMessage.success('已删除'); fetchList(); })
+    .then(async () => {
+      await deleteTestcase(row.id);
+      ElMessage.success('已删除');
+      if (testcases.value.length <= 1 && currentPage.value > 1) {
+        currentPage.value -= 1;
+      }
+      fetchList();
+    })
     .catch(() => {});
 };
 
 const handleBatchDelete = () => {
   ElMessageBox.confirm(`确定删除选中的 ${selectedIds.value.length} 条用例？`, '提示', { type: 'warning' })
     .then(async () => {
+      const deletedCount = selectedIds.value.length;
       await Promise.all(selectedIds.value.map((id) => deleteTestcase(id)));
       selectedIds.value = [];
       ElMessage.success('批量删除成功');
+      // 如果删完当前页所有数据且不在第一页，回退到上一页
+      const remaining = testcases.value.length - deletedCount;
+      if (remaining <= 0 && currentPage.value > 1) {
+        currentPage.value -= 1;
+      }
       fetchList();
     })
     .catch(() => {});
+};
+
+// ── 加入基线 ──────────────────────────────────────────────────
+const handleAddToBaseline = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确定将选中的 ${selectedIds.value.length} 条用例加入基线？（将复制为基线用例）`,
+      '加入基线',
+      { type: 'info' },
+    );
+    const res = await addToBaseline(selectedIds.value);
+    ElMessage.success(res.message || '加入基线成功');
+    selectedIds.value = [];
+  } catch { /* 取消 */ }
+};
+
+// ── 从基线导入到版本 ──────────────────────────────────────────
+const importToVersionVisible = ref(false);
+const importTargetVersion = ref(null);
+const importLoading = ref(false);
+
+const handleImportFromBaseline = async () => {
+  if (!importTargetVersion.value) { ElMessage.warning('请选择目标版本'); return; }
+  importLoading.value = true;
+  try {
+    const res = await importFromBaseline(selectedIds.value, importTargetVersion.value);
+    ElMessage.success(res.message || '导入成功');
+    importToVersionVisible.value = false;
+    importTargetVersion.value = null;
+    selectedIds.value = [];
+  } catch { ElMessage.error('导入失败'); } finally { importLoading.value = false; }
 };
 
 // ── 批量关联需求 ──────────────────────────────────────────────
@@ -520,7 +643,25 @@ const handleSubmitBugFromRun = () => {
 // ── 详情 ──────────────────────────────────────────────────────
 const detailVisible = ref(false);
 const detailCase = ref(null);
-const handleDetail = (row) => { detailCase.value = row; detailVisible.value = true; };
+const detailIndex = ref(0);
+const handleDetail = (row) => {
+  const idx = testcases.value.findIndex((t) => t.id === row.id);
+  detailIndex.value = idx >= 0 ? idx : 0;
+  detailCase.value = row;
+  detailVisible.value = true;
+};
+const handleDetailPrev = () => {
+  if (detailIndex.value > 0) {
+    detailIndex.value -= 1;
+    detailCase.value = testcases.value[detailIndex.value];
+  }
+};
+const handleDetailNext = () => {
+  if (detailIndex.value < testcases.value.length - 1) {
+    detailIndex.value += 1;
+    detailCase.value = testcases.value[detailIndex.value];
+  }
+};
 
 // ── 导入 ──────────────────────────────────────────────────────
 const importDialogVisible = ref(false);
@@ -579,6 +720,7 @@ onMounted(() => { fetchOptions(); fetchList(); });
 // ── 主卡片 ────────────────────────────────────────────────────
 .main-card {
   :deep(.el-card__body) { padding: 16px 20px; }
+  :deep(.el-tabs__header) { margin-bottom: 12px; }
 }
 
 // ── 工具栏 ────────────────────────────────────────────────────
@@ -617,7 +759,6 @@ onMounted(() => { fetchOptions(); fetchList(); });
   &:hover { color: var(--el-color-primary); }
 }
 
-// 优先级色块
 .priority-dot {
   display: inline-block;
   padding: 1px 7px;

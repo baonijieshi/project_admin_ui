@@ -6,9 +6,9 @@ import Layout from '@/layout/index.vue';
 
 const views = {
   dashboard: () => import('@/views/dashboard/index.vue'),
-  project: () => import('@/views/project/index.vue'),
-  'project-list': () => import('@/views/project/index.vue'),
-  'project-versions': () => import('@/views/project/version.vue'),
+  project: () => import('@/views/project/versions.vue'),
+  'project-list': () => import('@/views/project/versions.vue'),
+  'project-versions': () => import('@/views/project/index.vue'),
   product: () => import('@/views/product/index.vue'),
   story: () => import('@/views/story/index.vue'),
   task: () => import('@/views/task/index.vue'),
@@ -18,6 +18,7 @@ const views = {
   'test-autotest-report': () => import('@/views/autotest/report.vue'),
   'dev-api-manage': () => import('@/views/dev/apiManage/index.vue'),
   'delivery-ticket': () => import('@/views/ticket/index.vue'),
+  'mock-center': () => import('@/views/mock/index.vue'),
   'settings-theme': () => import('@/views/settings/theme.vue'),
   'settings-members': () => import('@/views/settings/members.vue'),
   'settings-roles': () => import('@/views/settings/roles.vue'),
