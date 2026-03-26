@@ -6,9 +6,9 @@ import Layout from '@/layout/index.vue';
 
 const views = {
   dashboard: () => import('@/views/dashboard/index.vue'),
-  project: () => import('@/views/project/versions.vue'),
-  'project-list': () => import('@/views/project/versions.vue'),
-  'project-versions': () => import('@/views/project/index.vue'),
+  project: () => import('@/views/project/index.vue'),
+  'project-list': () => import('@/views/project/index.vue'),
+  'project-versions': () => import('@/views/project/version.vue'),
   product: () => import('@/views/product/index.vue'),
   story: () => import('@/views/story/index.vue'),
   task: () => import('@/views/task/index.vue'),

@@ -2,7 +2,7 @@
   <div class="sidebar-wrapper">
     <div class="sidebar-logo-container" :style="{ background: themeTitleColor }">
       <div class="sidebar-logo-link">
-        <h1 class="sidebar-title">快牛项目管理平台</h1>
+        <h1 class="sidebar-title">旭辉项目管理平台</h1>
       </div>
     </div>
     <el-scrollbar wrap-class="scrollbar-wrapper">

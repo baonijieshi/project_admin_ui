@@ -1,19 +1,19 @@
 <template>
-  <div class="version-page">
-    <!-- 顶部工具栏 -->
+  <div class="project-page">
+    <!-- 页头 -->
     <div class="page-header">
       <div class="header-left">
-        <h2 class="page-title">版本管理</h2>
-        <span class="page-subtitle">{{ versions.length }} 个版本</span>
+        <h2 class="page-title">项目管理</h2>
+        <span class="page-subtitle">{{ filteredProjects.length }} 个项目</span>
       </div>
-      <el-button type="primary" :icon="Plus" @click="handleAdd">新建版本</el-button>
+      <el-button type="primary" :icon="Plus" @click="handleAdd">新建项目</el-button>
     </div>
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
       <el-input
         v-model="queryParams.name"
-        placeholder="搜索版本名称"
+        placeholder="搜索项目名称"
         clearable
         :prefix-icon="Search"
         style="width: 220px"
@@ -24,164 +24,66 @@
         v-model="queryParams.status"
         placeholder="全部状态"
         clearable
-        style="width: 130px"
+        style="width: 120px"
         @change="handleSearch"
       >
-        <el-option label="未开始" value="未开始" />
-        <el-option label="进行中" value="进行中" />
-        <el-option label="已完成" value="已完成" />
-        <el-option label="已暂停" value="已暂停" />
-      </el-select>
-      <el-select
-        v-model="queryParams.manager"
-        placeholder="产品经理"
-        clearable
-        filterable
-        style="width: 150px"
-        @change="handleSearch"
-      >
-        <el-option v-for="u in pmUserList" :key="u.id" :label="u.label" :value="u.label">
-          <div class="user-option">
-            <el-avatar :size="20" :src="u.avatar || ''">{{ u.label ? u.label.charAt(0) : '' }}</el-avatar>
-            <span>{{ u.label }}</span>
-          </div>
-        </el-option>
+        <el-option label="启用" value="启用" />
+        <el-option label="禁用" value="禁用" />
       </el-select>
       <el-button
-        v-if="queryParams.name || queryParams.status || queryParams.manager"
+        v-if="queryParams.name || queryParams.status"
         link
         type="primary"
         @click="handleReset"
       >清除筛选</el-button>
     </div>
 
-    <!-- 时间轴内容 -->
-    <div v-if="groupedVersions.length > 0" v-loading="loading" class="version-grouped">
-      <div v-for="yearGroup in groupedVersions" :key="yearGroup.year" class="year-group">
-        <div
-          class="year-group__header"
-          role="button"
-          tabindex="0"
-          :aria-expanded="expandedYears.has(yearGroup.year)"
-          @click="toggleYear(yearGroup.year)"
-          @keydown.enter="toggleYear(yearGroup.year)"
-        >
-          <el-icon class="collapse-icon" :class="{ 'is-open': expandedYears.has(yearGroup.year) }">
-            <ArrowRight />
-          </el-icon>
-          <span class="year-group__label">{{ yearGroup.year }} 年</span>
-          <el-badge :value="yearGroup.total" :max="999" class="year-group__badge" />
+    <!-- 项目卡片网格 -->
+    <div v-if="filteredProjects.length > 0" v-loading="loading" class="project-grid">
+      <div
+        v-for="proj in filteredProjects"
+        :key="proj.id"
+        class="project-card"
+        :class="{ 'is-disabled': proj.status === '禁用' }"
+        @click="handleDetail(proj)"
+      >
+        <div class="project-card__header">
+          <div class="project-card__title-row">
+            <span class="project-card__name">{{ proj.name }}</span>
+            <el-tag
+              :type="proj.status === '启用' ? 'success' : 'info'"
+              size="small"
+              effect="plain"
+              round
+            >{{ proj.status }}</el-tag>
+          </div>
+          <div class="project-card__actions" @click.stop>
+            <el-button size="small" link type="primary" @click="handleEdit(proj)">编辑</el-button>
+            <el-button size="small" link type="danger" @click="handleDelete(proj)">删除</el-button>
+          </div>
         </div>
 
-        <el-collapse-transition>
-          <div v-show="expandedYears.has(yearGroup.year)" class="quarter-list">
-            <div v-for="qg in yearGroup.quarters" :key="qg.quarter" class="quarter-group">
-              <div
-                class="quarter-group__header"
-                role="button"
-                tabindex="0"
-                :aria-expanded="expandedQuarters.has(`${yearGroup.year}-${qg.quarter}`)"
-                @click="toggleQuarter(yearGroup.year, qg.quarter)"
-                @keydown.enter="toggleQuarter(yearGroup.year, qg.quarter)"
-              >
-                <el-icon class="collapse-icon collapse-icon--sm" :class="{ 'is-open': expandedQuarters.has(`${yearGroup.year}-${qg.quarter}`) }">
-                  <ArrowRight />
-                </el-icon>
-                <span class="quarter-group__label">{{ qg.quarter }}</span>
-                <span class="quarter-group__count">{{ qg.versions.length }} 个版本</span>
-              </div>
+        <div v-if="proj.description" class="project-card__desc" v-html="proj.description" />
+        <p v-else class="project-card__desc project-card__desc--empty">暂无描述</p>
 
-              <el-collapse-transition>
-                <div v-show="expandedQuarters.has(`${yearGroup.year}-${qg.quarter}`)" class="version-timeline">
-                  <div v-for="ver in qg.versions" :key="ver.id" class="version-card">
-                    <div class="version-card__dot" :class="statusDotClass(ver.status)" />
-                    <div class="version-card__body" @click="handleDetail(ver)">
-                      <!-- 第一行：标题 + 操作 -->
-                      <div class="version-card__row-1">
-                        <div class="version-card__title-area">
-                          <span class="version-card__name">{{ ver.name }}</span>
-                          <el-tag :type="statusType(ver.status)" size="small" effect="plain" round>{{ ver.status }}</el-tag>
-                        </div>
-                        <div class="version-card__actions" @click.stop>
-                          <el-button size="small" link type="primary" @click="handleEdit(ver)">编辑</el-button>
-                          <el-button size="small" link type="danger" @click="handleDelete(ver)">删除</el-button>
-                        </div>
-                      </div>
-
-                      <!-- 第二行：周期 + 需求 -->
-                      <div class="version-card__row-2">
-                        <span v-if="ver.startDate || ver.endDate" class="meta-chip">
-                          <el-icon><Calendar /></el-icon>
-                          {{ ver.startDate || '?' }} ~ {{ ver.endDate || '?' }}
-                        </span>
-                        <span v-if="ver.storyTitle" class="meta-chip meta-chip--story">
-                          <el-icon><Document /></el-icon>
-                          {{ ver.storyTitle }}
-                        </span>
-                      </div>
-
-                      <!-- 第三行：团队 -->
-                      <div v-if="ver.manager || ver.devLeader || ver.testLeader" class="version-card__row-3">
-                        <div v-if="ver.manager" class="member-chip">
-                          <el-avatar :size="18" :src="ver.managerAvatar || ''">{{ ver.manager.charAt(0) }}</el-avatar>
-                          <span class="member-chip__role">PM</span>
-                          <span class="member-chip__name">{{ ver.manager }}</span>
-                        </div>
-                        <div v-if="ver.devLeader" class="member-chip">
-                          <el-avatar :size="18" :src="ver.devLeaderAvatar || ''">{{ ver.devLeader.charAt(0) }}</el-avatar>
-                          <span class="member-chip__role">Dev</span>
-                          <span class="member-chip__name">{{ ver.devLeader }}</span>
-                        </div>
-                        <div v-if="ver.testLeader" class="member-chip">
-                          <el-avatar :size="18" :src="ver.testLeaderAvatar || ''">{{ ver.testLeader.charAt(0) }}</el-avatar>
-                          <span class="member-chip__role">QA</span>
-                          <span class="member-chip__name">{{ ver.testLeader }}</span>
-                        </div>
-                      </div>
-
-                      <!-- 第四行：进度 + 统计 -->
-                      <div class="version-card__row-4">
-                        <div class="progress-area">
-                          <el-progress
-                            :percentage="ver.progress"
-                            :color="progressColor(ver.progress)"
-                            :stroke-width="6"
-                            :show-text="false"
-                          />
-                          <span class="progress-text">{{ ver.progress }}%</span>
-                        </div>
-                        <div class="stat-chips">
-                          <span class="stat-chip stat-chip--task">
-                            <el-icon><Tickets /></el-icon>{{ ver.taskDone }}/{{ ver.taskTotal }}
-                          </span>
-                          <span
-                            class="stat-chip stat-chip--bug"
-                            @click.stop="goToBugPage(ver)"
-                          >
-                            <el-icon><WarningFilled /></el-icon>{{ ver.bugCount }}
-                          </span>
-                        </div>
-                      </div>
-
-                      <!-- 第五行：关联项目 -->
-                      <div v-if="ver.projectNames && ver.projectNames.length" class="version-card__row-5">
-                        <el-tag
-                          v-for="p in ver.projectNames.slice(0, 4)"
-                          :key="p"
-                          size="small"
-                          type="info"
-                          effect="plain"
-                          round
-                        >{{ p }}</el-tag>
-                        <span v-if="ver.projectNames.length > 4" class="more-tag">+{{ ver.projectNames.length - 4 }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </el-collapse-transition>
-            </div>
+        <div class="project-card__footer">
+          <div class="version-tags">
+            <template v-if="proj.version_names && proj.version_names.length">
+              <el-tag
+                v-for="v in proj.version_names.slice(0, 3)"
+                :key="v"
+                size="small"
+                effect="plain"
+                round
+              >{{ v }}</el-tag>
+              <span v-if="proj.version_names.length > 3" class="more-count">
+                +{{ proj.version_names.length - 3 }}
+              </span>
+            </template>
+            <span v-else class="no-version">未关联版本</span>
           </div>
-        </el-collapse-transition>
+          <span class="project-card__date">{{ formatDate(proj.created_at) }}</span>
+        </div>
       </div>
     </div>
 
@@ -189,294 +91,232 @@
     <div v-else-if="!loading" class="empty-state">
       <el-empty :image-size="120" description="">
         <template #description>
-          <p class="empty-title">{{ hasFilter ? '没有匹配的版本' : '还没有版本' }}</p>
-          <p class="empty-desc">{{ hasFilter ? '试试调整筛选条件' : '创建第一个版本来开始管理迭代' }}</p>
+          <p class="empty-title">{{ hasFilter ? '没有匹配的项目' : '还没有项目' }}</p>
+          <p class="empty-desc">{{ hasFilter ? '试试调整筛选条件' : '创建第一个项目来开始' }}</p>
         </template>
-        <el-button v-if="!hasFilter" type="primary" @click="handleAdd">新建版本</el-button>
+        <el-button v-if="!hasFilter" type="primary" @click="handleAdd">新建项目</el-button>
         <el-button v-else @click="handleReset">清除筛选</el-button>
       </el-empty>
     </div>
 
-    <VersionDialog
-      v-model:visible="dialogVisible"
-      :editing-id="editingId"
-      :initial-form="editingForm"
-      :story-options="storyOptions"
-      :pm-user-list="pmUserList"
-      :dev-user-list="devUserList"
-      :test-user-list="testUserList"
-      :project-options="projectOptions"
-      @saved="fetchList"
+    <!-- 编辑抽屉 -->
+    <el-drawer
+      v-model="drawerVisible"
+      :title="drawerTitle"
+      size="640px"
+      direction="rtl"
+      destroy-on-close
+    >
+      <el-form
+        ref="formRef"
+        :model="projectForm"
+        :rules="formRules"
+        label-width="80px"
+        label-position="top"
+      >
+        <el-form-item label="项目名称" prop="name">
+          <el-input v-model="projectForm.name" placeholder="如 SLA预警通知、用户中心" maxlength="100" show-word-limit />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-radio-group v-model="projectForm.status">
+            <el-radio-button label="启用" value="启用" />
+            <el-radio-button label="禁用" value="禁用" />
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="关联版本">
+          <el-select
+            v-model="projectForm.versionIds"
+            multiple
+            clearable
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="请选择关联版本（可多选）"
+            style="width: 100%"
+          >
+            <el-option v-for="v in versionOptions" :key="v.id" :label="v.name" :value="v.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="项目描述">
+          <div class="editor-wrap">
+            <Toolbar :editor="editorRef" :default-config="toolbarConfig" style="border-bottom: 1px solid #dcdfe6" />
+            <Editor
+              v-model="projectForm.description"
+              :default-config="editorConfig"
+              style="height: 260px; overflow-y: hidden"
+              @on-created="onEditorCreated"
+            />
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="drawerVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
+      </template>
+    </el-drawer>
+
+    <ProjectDetailDialog
+      v-model:visible="detailVisible"
+      :project="detailProject"
     />
-    <VersionDetailDialog v-model:visible="detailVisible" :version="detailVersion" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { ElMessage, ElMessageBox, ElCollapseTransition } from 'element-plus';
 import {
-  Plus, Search, ArrowRight, Calendar, Document,
-  Tickets, WarningFilled,
-} from '@element-plus/icons-vue';
-import { getVersionList, deleteVersion } from '@/api/version';
-import { getUserList } from '@/api/user';
-import { getStoryList } from '@/api/story';
-import { getProjectList } from '@/api/project';
-import VersionDialog from './components/VersionDialog.vue';
-import VersionDetailDialog from './components/VersionDetailDialog.vue';
+  ref, computed, onMounted, shallowRef, onBeforeUnmount,
+} from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus, Search } from '@element-plus/icons-vue';
+import { Editor, Toolbar } from '@wangeditor/editor-for-vue';
+import {
+  getProjectList, createProject, updateProject, deleteProject,
+} from '@/api/project';
+import { getVersionList } from '@/api/version';
+import request from '@/utils/request';
+import ProjectDetailDialog from './components/ProjectDetailDialog.vue';
 
-const router = useRouter();
-const route = useRoute();
 const loading = ref(false);
-const pmUserList = ref([]);
-const devUserList = ref([]);
-const testUserList = ref([]);
-const storyOptions = ref([]);
-const projectOptions = ref([]);
+const submitting = ref(false);
+const projects = ref([]);
+const versionOptions = ref([]);
+const queryParams = ref({ name: '', status: '' });
 
-const fetchOptions = async () => {
-  try {
-    const [userRes, storyRes, projectRes] = await Promise.all([
-      getUserList(),
-      getStoryList({ page: 1, pageSize: 999 }),
-      getProjectList({ status: '启用' }),
-    ]);
-    const users = (userRes.data || []).map((u) => ({
-      id: u.id,
-      label: u.first_name || u.username,
-      role: u.role,
-      avatar: u.avatar || '',
-    }));
-    pmUserList.value = users.filter((u) => u.role === 'pm' || u.role === 'admin');
-    devUserList.value = users.filter((u) => u.role === 'dev' || u.role === 'admin');
-    testUserList.value = users.filter((u) => u.role === 'test' || u.role === 'admin');
-    storyOptions.value = (storyRes.data.list || []).map((s) => ({
-      id: s.id,
-      title: s.title,
-    }));
-    projectOptions.value = (projectRes.data || []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      status: p.status || '',
-    }));
-  } catch { /* ignore */ }
+// 富文本编辑器
+const editorRef = shallowRef(null);
+const toolbarConfig = {};
+const editorConfig = {
+  placeholder: '描述本项目的定位、目标、范围...',
+  MENU_CONF: {
+    uploadImage: {
+      async customUpload(file, insertFn) {
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const res = await request({
+            url: '/upload/image',
+            method: 'post',
+            data: formData,
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 30000,
+          });
+          if (res.code === 200 && res.data?.url) {
+            insertFn(res.data.url, file.name, res.data.url);
+          } else {
+            ElMessage.error('图片上传失败');
+          }
+        } catch {
+          ElMessage.error('图片上传失败，请重试');
+        }
+      },
+    },
+  },
 };
+const onEditorCreated = (editor) => { editorRef.value = editor; };
+onBeforeUnmount(() => { if (editorRef.value) editorRef.value.destroy(); });
 
-const versions = ref([]);
-const queryParams = ref({ name: '', status: '', manager: '' });
-const expandedYears = ref(new Set());
-const expandedQuarters = ref(new Set());
+const hasFilter = computed(() => queryParams.value.name || queryParams.value.status);
 
-const hasFilter = computed(
-  () => queryParams.value.name || queryParams.value.status || queryParams.value.manager,
-);
+const filteredProjects = computed(() => projects.value.filter((p) => {
+  if (queryParams.value.name && !p.name.includes(queryParams.value.name)) return false;
+  if (queryParams.value.status && p.status !== queryParams.value.status) return false;
+  return true;
+}));
 
-const getQuarter = (dateStr) => {
-  if (!dateStr) return null;
-  const month = new Date(dateStr).getMonth() + 1;
-  if (month <= 3) return 'Q1';
-  if (month <= 6) return 'Q2';
-  if (month <= 9) return 'Q3';
-  return 'Q4';
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  return dateStr.slice(0, 10);
 };
-const getYear = (dateStr) => {
-  if (!dateStr) return null;
-  return String(new Date(dateStr).getFullYear());
-};
-
-const groupedVersions = computed(() => {
-  const filtered = versions.value.filter((v) => {
-    if (queryParams.value.name && !v.name.includes(queryParams.value.name)) return false;
-    if (queryParams.value.status && v.status !== queryParams.value.status) return false;
-    if (queryParams.value.manager && v.manager !== queryParams.value.manager) return false;
-    return true;
-  });
-  const yearMap = {};
-  filtered.forEach((ver) => {
-    const dateKey = ver.startDate || ver.created_at || '';
-    const year = getYear(dateKey) || '未规划';
-    const quarter = getQuarter(dateKey) || '未定';
-    if (!yearMap[year]) yearMap[year] = {};
-    if (!yearMap[year][quarter]) yearMap[year][quarter] = [];
-    yearMap[year][quarter].push(ver);
-  });
-  // 未规划排最后
-  const sortKey = (y) => (y === '未规划' ? '0000' : y);
-  return Object.keys(yearMap)
-    .sort((a, b) => sortKey(b).localeCompare(sortKey(a)))
-    .map((year) => {
-      const quarters = Object.keys(yearMap[year])
-        .sort((a, b) => {
-          if (a === '未定') return 1;
-          if (b === '未定') return -1;
-          return b.localeCompare(a);
-        })
-        .map((quarter) => ({
-          quarter,
-          versions: yearMap[year][quarter],
-        }));
-      return {
-        year,
-        total: quarters.reduce((s, q) => s + q.versions.length, 0),
-        quarters,
-      };
-    });
-});
-
-const initExpanded = () => {
-  if (groupedVersions.value.length === 0) return;
-  const latestYear = groupedVersions.value[0];
-  expandedYears.value = new Set([latestYear.year]);
-  if (latestYear.quarters.length > 0) {
-    expandedQuarters.value = new Set([
-      `${latestYear.year}-${latestYear.quarters[0].quarter}`,
-    ]);
-  }
-};
-
-const toggleYear = (year) => {
-  const s = new Set(expandedYears.value);
-  if (s.has(year)) {
-    s.delete(year);
-  } else {
-    s.add(year);
-  }
-  expandedYears.value = s;
-};
-const toggleQuarter = (year, quarter) => {
-  const key = `${year}-${quarter}`;
-  const s = new Set(expandedQuarters.value);
-  if (s.has(key)) {
-    s.delete(key);
-  } else {
-    s.add(key);
-  }
-  expandedQuarters.value = s;
-};
-
-const mapVersion = (v) => ({
-  ...v,
-  manager: v.manager_name || '',
-  managerAvatar: v.manager_avatar || '',
-  manager_raw: v.manager || null,
-  devLeader: v.dev_leader_name || '',
-  devLeaderAvatar: v.dev_leader_avatar || '',
-  devLeader_raw: v.dev_leader || null,
-  testLeader: v.test_leader_name || '',
-  testLeaderAvatar: v.test_leader_avatar || '',
-  testLeader_raw: v.test_leader || null,
-  storyTitle: v.story_title || '',
-  startDate: v.start_date || '',
-  endDate: v.end_date || '',
-  taskTotal: v.task_total || 0,
-  taskDone: v.task_done || 0,
-  bugCount: v.bug_count || 0,
-  projectIds: v.project_ids || [],
-  projectNames: v.project_names || [],
-  desc: v.description || '',
-});
 
 const fetchList = async () => {
   loading.value = true;
   try {
-    const res = await getVersionList({ page: 1, pageSize: 999 });
-    versions.value = (res.data.list || []).map(mapVersion);
-    initExpanded();
+    const res = await getProjectList({});
+    projects.value = res.data || [];
   } catch { /* ignore */ } finally {
     loading.value = false;
   }
 };
 
 onMounted(async () => {
-  fetchOptions();
-  await fetchList();
-  const { storyId, storyTitle, openId } = route.query;
-  if (storyId && storyTitle) {
-    editingId.value = null;
-    editingForm.value = {
-      name: storyTitle,
-      story: Number(storyId),
-      manager: null,
-      devLeader: null,
-      testLeader: null,
-      status: '未开始',
-      startDate: '',
-      endDate: '',
-      desc: '',
-    };
-    dialogVisible.value = true;
-    router.replace({ path: route.path });
-  } else if (openId) {
-    const target = versions.value.find((v) => String(v.id) === String(openId));
-    if (target) handleDetail(target);
-  }
+  fetchList();
+  try {
+    const res = await getVersionList({ page: 1, pageSize: 999 });
+    versionOptions.value = (res.data.list || []).map((v) => ({
+      id: v.id,
+      name: v.name,
+    }));
+  } catch { /* ignore */ }
 });
 
-const handleSearch = () => initExpanded();
+const handleSearch = () => {};
 const handleReset = () => {
-  queryParams.value = { name: '', status: '', manager: '' };
-  initExpanded();
+  queryParams.value = { name: '', status: '' };
 };
 
-const statusType = (s) => ({
-  未开始: 'info',
-  进行中: 'primary',
-  已完成: 'success',
-  已暂停: 'warning',
-}[s] || 'info');
-const statusDotClass = (s) => ({
-  未开始: '',
-  进行中: 'is-active',
-  已完成: 'is-done',
-  已暂停: 'is-paused',
-}[s] || '');
-const progressColor = (p) => {
-  if (p < 30) return '#909399';
-  if (p < 70) return '#409eff';
-  return '#67c23a';
-};
-const goToBugPage = (ver) => {
-  router.push({
-    path: '/test/bug',
-    query: { versionId: ver.id, versionName: ver.name },
-  });
-};
-
-/* ── 新建 / 编辑 ── */
-const dialogVisible = ref(false);
+/* ── 抽屉表单 ── */
+const drawerVisible = ref(false);
+const drawerTitle = ref('新建项目');
+const formRef = ref(null);
 const editingId = ref(null);
-const editingForm = ref(null);
+const defaultForm = () => ({
+  name: '',
+  description: '',
+  status: '启用',
+  versionIds: [],
+});
+const projectForm = ref(defaultForm());
+const formRules = {
+  name: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
+};
+
 const handleAdd = () => {
   editingId.value = null;
-  editingForm.value = null;
-  dialogVisible.value = true;
+  drawerTitle.value = '新建项目';
+  projectForm.value = defaultForm();
+  drawerVisible.value = true;
 };
-const handleEdit = (ver) => {
-  editingId.value = ver.id;
-  editingForm.value = {
-    name: ver.name,
-    story: ver.story || null,
-    projectIds: ver.projectIds || [],
-    manager: ver.manager_raw || null,
-    devLeader: ver.devLeader_raw || null,
-    testLeader: ver.testLeader_raw || null,
-    status: ver.status,
-    startDate: ver.startDate,
-    endDate: ver.endDate,
-    desc: ver.desc,
+const handleEdit = (row) => {
+  editingId.value = row.id;
+  drawerTitle.value = `编辑项目 · ${row.name}`;
+  projectForm.value = {
+    name: row.name,
+    description: row.description || '',
+    status: row.status,
+    versionIds: row.version_ids || [],
   };
-  dialogVisible.value = true;
+  drawerVisible.value = true;
 };
-const handleDelete = (ver) => {
+const handleSubmit = async () => {
+  if (!formRef.value) return;
+  try {
+    await formRef.value.validate();
+    submitting.value = true;
+    const payload = {
+      ...projectForm.value,
+      version_ids: projectForm.value.versionIds,
+    };
+    if (editingId.value) {
+      await updateProject(editingId.value, payload);
+      ElMessage.success('项目已更新');
+    } else {
+      await createProject(payload);
+      ElMessage.success('项目已创建');
+    }
+    drawerVisible.value = false;
+    fetchList();
+  } catch { /* ignore */ } finally {
+    submitting.value = false;
+  }
+};
+const handleDelete = (row) => {
   ElMessageBox.confirm(
-    `确定删除版本「${ver.name}」？删除后不可恢复。`,
+    `确定删除项目「${row.name}」？删除后不可恢复。`,
     '删除确认',
     { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
   )
     .then(async () => {
-      await deleteVersion(ver.id);
+      await deleteProject(row.id);
       ElMessage.success('已删除');
       fetchList();
     })
@@ -485,39 +325,15 @@ const handleDelete = (ver) => {
 
 /* ── 详情 ── */
 const detailVisible = ref(false);
-const detailVersion = ref(null);
-const handleDetail = async (ver) => {
-  detailVersion.value = { ...ver, tasks: [], bugs: [] };
+const detailProject = ref(null);
+const handleDetail = (proj) => {
+  detailProject.value = { ...proj };
   detailVisible.value = true;
-  try {
-    const { getTaskList } = await import('@/api/task');
-    const { getBugList } = await import('@/api/bug');
-    const [taskRes, bugRes] = await Promise.all([
-      getTaskList({ versionId: ver.id, page: 1, pageSize: 999 }),
-      getBugList({ versionId: ver.id, page: 1, pageSize: 999 }),
-    ]);
-    const taskList = (taskRes.data.list || []).map((t) => ({
-      ...t,
-      assignee: t.assignee_name || '',
-    }));
-    const bugList = (bugRes.data.list || []).map((b) => ({
-      ...b,
-      assignee: b.assignee_name || '',
-    }));
-    detailVersion.value = {
-      ...detailVersion.value,
-      tasks: taskList,
-      bugs: bugList,
-      taskTotal: taskList.length,
-      taskDone: taskList.filter((t) => t.status === '已完成').length,
-      bugCount: bugList.length,
-    };
-  } catch { /* ignore */ }
 };
 </script>
 
 <style scoped lang="scss">
-.version-page {
+.project-page {
   padding: 24px;
 }
 
@@ -552,265 +368,127 @@ const handleDetail = async (ver) => {
   margin-bottom: 20px;
   flex-wrap: wrap;
 }
-.user-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
 
-/* ── 年份分组 ── */
-.version-grouped {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.year-group {
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fff;
-
-  &__header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 14px 20px;
-    background: var(--el-fill-color-light);
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.15s;
-    &:hover { background: var(--el-fill-color); }
-    &:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: -2px; }
-  }
-  &__label {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-    flex: 1;
-  }
-  &__badge {
-    :deep(.el-badge__content) {
-      position: static;
-      transform: none;
-    }
-  }
-}
-
-/* ── 季度分组 ── */
-.quarter-list {
-  padding: 8px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.quarter-group {
-  border: 1px solid var(--el-border-color-extra-light);
-  border-radius: 8px;
-  overflow: hidden;
-
-  &__header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    background: #fafbfc;
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.15s;
-    &:hover { background: var(--el-fill-color-extra-light); }
-    &:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: -2px; }
-  }
-  &__label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--el-text-color-regular);
-    flex: 1;
-  }
-  &__count {
-    font-size: 12px;
-    color: var(--el-text-color-placeholder);
-  }
-}
-.collapse-icon {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-  transition: transform 0.25s ease;
-  &.is-open { transform: rotate(90deg); }
-  &--sm { font-size: 12px; }
-}
-
-/* ── 时间轴 ── */
-.version-timeline {
-  position: relative;
-  padding: 12px 16px 12px 40px;
-
-  &::before {
-    content: '';
-    position: absolute;
-    left: 24px;
-    top: 18px;
-    bottom: 18px;
-    width: 2px;
-    background: var(--el-border-color-lighter);
-    border-radius: 1px;
-  }
-}
-
-/* ── 版本卡片 ── */
-.version-card {
-  position: relative;
-  margin-bottom: 16px;
-  &:last-child { margin-bottom: 0; }
-
-  &__dot {
-    position: absolute;
-    left: -20px;
-    top: 18px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--el-border-color);
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 2px var(--el-border-color);
-    z-index: 1;
-    &.is-active { background: #409eff; box-shadow: 0 0 0 2px #a0cfff; }
-    &.is-done { background: #67c23a; box-shadow: 0 0 0 2px #b3e19d; }
-    &.is-paused { background: #e6a23c; box-shadow: 0 0 0 2px #f5dab1; }
-  }
-
-  &__body {
-    background: #fff;
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 10px;
-    padding: 16px 20px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    &:hover {
-      border-color: var(--el-color-primary-light-5);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-    }
-  }
-}
-
-/* ── 卡片行 ── */
-.version-card__row-1 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.version-card__title-area {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.version-card__name {
-  font-size: 15px;
-  font-weight: 600;
-  color: #303133;
-}
-.version-card__actions {
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-  .version-card__body:hover & { opacity: 1; }
-}
-
-.version-card__row-2 {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.meta-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #909399;
-  .el-icon { font-size: 13px; }
-  &--story { color: #606266; }
-}
-
-.version-card__row-3 {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.member-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #606266;
-  .el-avatar {
-    font-size: 10px;
-    background: linear-gradient(135deg, #409eff, #66b1ff);
-    color: #fff;
-  }
-  &__role { color: #909399; font-size: 11px; }
-  &__name { font-weight: 500; }
-}
-
-.version-card__row-4 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* ── 项目卡片网格 ── */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 16px;
 }
-.progress-area {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  max-width: 280px;
-  .el-progress { flex: 1; }
-}
-.progress-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: #606266;
-  min-width: 32px;
-  text-align: right;
-}
-.stat-chips {
-  display: flex;
-  gap: 8px;
-}
-.stat-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 10px;
+
+.project-card {
+  background: #fff;
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-  .el-icon { font-size: 12px; }
-  &--task { background: #f0f2f5; color: #606266; }
-  &--bug {
-    background: #fef0f0;
-    color: #f56c6c;
-    cursor: pointer;
-    transition: background 0.15s;
-    &:hover { background: #fde2e2; }
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--el-color-primary-light-5);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  &.is-disabled {
+    background: #fafbfc;
+    opacity: 0.7;
+  }
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  &__title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  &__name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #303133;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &__actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  &:hover &__actions { opacity: 1; }
+
+  &__desc {
+    font-size: 13px;
+    color: #606266;
+    line-height: 1.6;
+    margin: 0 0 auto;
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 42px;
+    word-break: break-word;
+
+    :deep(p) { margin: 0; }
+    :deep(img) { display: none; }
+    :deep(h1), :deep(h2), :deep(h3), :deep(h4) {
+      font-size: inherit;
+      margin: 0;
+      font-weight: 500;
+    }
+    :deep(ul), :deep(ol) { margin: 0; padding-left: 16px; }
+    :deep(table) { display: none; }
+    :deep(blockquote) { margin: 0; padding: 0; border: none; }
+
+    &--empty {
+      color: #c0c4cc;
+      font-style: italic;
+    }
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--el-border-color-extra-light);
+    gap: 8px;
+  }
+  &__date {
+    font-size: 12px;
+    color: #c0c4cc;
+    flex-shrink: 0;
   }
 }
 
-.version-card__row-5 {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--el-border-color-lighter);
+/* ── 版本标签 ── */
+.version-tags {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
 }
-.more-tag {
+.no-version {
+  font-size: 12px;
+  color: #c0c4cc;
+  font-style: italic;
+}
+.more-count {
   font-size: 12px;
   color: #909399;
+  font-weight: 500;
 }
 
 /* ── 空状态 ── */
@@ -828,4 +506,14 @@ const handleDetail = async (ver) => {
   color: #909399;
   margin: 0 0 16px;
 }
+
+/* ── 富文本编辑器 ── */
+.editor-wrap {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  width: 100%;
+  overflow: hidden;
+}
 </style>
+
+<style src="@wangeditor/editor/dist/css/style.css" />

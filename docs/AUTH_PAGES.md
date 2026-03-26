@@ -74,17 +74,17 @@
 ```javascript
 {
   path: '/login',
-  component: () => import('@/views/login/index.vue'),
+  component: () => import('@/views/login/version.vue'),
   hidden: true,
 },
 {
   path: '/register',
-  component: () => import('@/views/register/index.vue'),
+  component: () => import('@/views/register/version.vue'),
   hidden: true,
 },
 {
   path: '/forgot-password',
-  component: () => import('@/views/forgot-password/index.vue'),
+  component: () => import('@/views/forgot-password/version.vue'),
   hidden: true,
 }
 ```

@@ -189,7 +189,7 @@ const fetchData = () => {
     {
       path: '',
       name: 'Example',
-      component: () => import('@/views/example/index.vue'),
+      component: () => import('@/views/example/version.vue'),
       meta: { title: '示例', icon: 'Document' },
     },
   ],
@@ -393,7 +393,7 @@ console.timeEnd('性能测试');
 
 ### 1. 路由懒加载
 ```javascript
-component: () => import('@/views/example/index.vue')
+component: () => import('@/views/example/version.vue')
 ```
 
 ### 2. 组件懒加载
